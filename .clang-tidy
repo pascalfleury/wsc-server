@@ -2,15 +2,12 @@ Checks: >
   -*,
   bugprone-*,
   google-*,
-  misc-*,
   modernize-*,
   performance-*,
   readability-identifier-naming,
   readability-container-size-empty,
   readability-redundant-smartptr-get,
   -modernize-use-trailing-return-type,
-  -misc-non-private-member-variables-in-classes,
-  -misc-include-cleaner,
   -bugprone-easily-swappable-parameters
 WarningsAsErrors: '*'
 HeaderFilterRegex: '^(libwsc|src|tests|fuzz|tools)/'

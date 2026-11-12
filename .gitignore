@@ -1,1 +1,7 @@
 # ignored files
+build/
+vcpkg_installed/
+compile_commands.json
+*~
+.vcpkg/
+.vcpkg-cache/

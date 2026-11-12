@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  # vcpkg is pinned so that all three platforms build the same dependency
+  # versions; bump deliberately.
+  VCPKG_COMMIT: 177e8175121536d414f405ed8b3099b325a42638
+  VCPKG_ROOT: ${{ github.workspace }}/.vcpkg
+  VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg-cache
+  VCPKG_DISABLE_METRICS: 1
+
+jobs:
+  build:
+    name: Build and test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/vcpkg
+      - run: cmake --preset dev
+      - run: cmake --build --preset dev --config Debug
+      - run: ctest --preset dev -C Debug
+
+  format:
+    name: clang-format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: git ls-files '*.h' '*.cc' | xargs clang-format --dry-run --Werror
+
+  sanitizers:
+    name: ASan + UBSan + clang-tidy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/vcpkg
+      - run: cmake --preset asan -DWSC_CLANG_TIDY=ON
+      - run: cmake --build --preset asan
+      - run: ctest --preset asan
+
+  coverage:
+    name: Coverage thresholds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/vcpkg
+      - run: python3 tools/check_coverage.py --self-test
+      - run: tools/coverage.sh

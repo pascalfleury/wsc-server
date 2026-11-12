@@ -4,6 +4,13 @@
 * Targets
 Linux, Windows, macOS. C++23 build (features used once all three toolchains support them, see [[file:CODING.org][CODING.org]]), CMake + vcpkg. CI on all three from day one.
 
+* Building
+- Needs CMake 3.25+, a C++23 compiler and a vcpkg checkout with =VCPKG_ROOT= pointing at it (CI pins the vcpkg commit in =.github/workflows/ci.yml=).
+- =cmake --preset dev && cmake --build --preset dev && ctest --preset dev=
+- Other presets: =asan= (Clang, ASan + UBSan; add =-DWSC_CLANG_TIDY=ON= for clang-tidy), =coverage= (use =tools/coverage.sh=, which also checks the thresholds).
+- Run in the foreground: =build/dev/src/wsc-server [--state_dir=DIR]=; Ctrl-C stops it.
+- Asio is included only through =src/platform/asio.h= (target =wsc_asio=), which supplies the =throw_exception= hook that Asio requires when exceptions are off.
+
 * Exceptions policy
 Project targets build with =-fno-exceptions= (MSVC: =/EHs-c- _HAS_EXCEPTIONS=0=).
 | Dependency     | How used without exceptions                                        |

@@ -1,0 +1,17 @@
+name: Set up vcpkg
+description: Checks out the pinned vcpkg commit and restores its binary cache.
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache@v4
+      with:
+        path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+        key: vcpkg-${{ runner.os }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('vcpkg.json') }}
+    - shell: bash
+      run: |
+        mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE" "$VCPKG_ROOT"
+        cd "$VCPKG_ROOT"
+        git init -q
+        git fetch -q --depth 1 https://github.com/microsoft/vcpkg "$VCPKG_COMMIT"
+        git checkout -q FETCH_HEAD
+        ./bootstrap-vcpkg.sh -disableMetrics

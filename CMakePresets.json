@@ -1,0 +1,40 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "dev",
+      "displayName": "Debug build with the default compiler",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "asan",
+      "displayName": "Clang with ASan + UBSan",
+      "inherits": "dev",
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "clang++",
+        "WSC_SANITIZE": "address,undefined"
+      }
+    },
+    {
+      "name": "coverage",
+      "displayName": "Clang with source-based coverage",
+      "inherits": "dev",
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "clang++",
+        "WSC_COVERAGE": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "dev", "configurePreset": "dev" },
+    { "name": "asan", "configurePreset": "asan" },
+    { "name": "coverage", "configurePreset": "coverage" }
+  ],
+  "testPresets": [
+    { "name": "dev", "configurePreset": "dev", "output": { "outputOnFailure": true } },
+    { "name": "asan", "configurePreset": "asan", "output": { "outputOnFailure": true } },
+    { "name": "coverage", "configurePreset": "coverage", "output": { "outputOnFailure": true } }
+  ]
+}
