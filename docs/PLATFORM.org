@@ -2,7 +2,7 @@
 #+STARTUP: overview
 
 * Targets
-Linux, Windows, macOS. C++20, CMake + vcpkg. CI on all three from day one.
+Linux, Windows, macOS. C++23 build (features used once all three toolchains support them, see [[file:CODING.org][CODING.org]]), CMake + vcpkg. CI on all three from day one.
 
 * Exceptions policy
 Project targets build with =-fno-exceptions= (MSVC: =/EHs-c- _HAS_EXCEPTIONS=0=).
@@ -29,7 +29,7 @@ Third-party libraries that use exceptions internally are built as separate targe
 - =App::Run(StopToken)=: OS-agnostic entry; builds io_context, pools, adapters, API, discovery.
 - =Identity=: UUIDv4 generated on first start, persisted in the state dir.
 - =ConfigStore=: owns configuration (JSON on disk), validates, publishes changes to components via posts on their strands.
-- =enums.hpp=: shared enums + =ToString= / =Parse= (StatusOr) for the API.
+- =enums.h=: shared enums + =ToString= / =Parse= (StatusOr) for the API.
 
 * Platform layer (=src/platform/=)
 | Concern            | Linux                     | Windows                     | macOS                                  |
@@ -54,4 +54,4 @@ Third-party libraries that use exceptions internally are built as separate targe
 - Auth: TBD (bind address restriction first).
 
 * CI
-GitHub Actions matrix: ubuntu-latest, windows-latest, macos-latest; build + unit tests; sanitizers (ASan/UBSan) on Linux; fuzz smoke run.
+GitHub Actions matrix: ubuntu-latest, windows-latest, macos-latest; build + unit tests; =clang-format= and =clang-tidy= checks; sanitizers (ASan/UBSan, TSan for concurrency tests) and coverage thresholds on Linux; fuzz smoke run.

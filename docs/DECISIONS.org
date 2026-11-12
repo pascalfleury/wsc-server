@@ -147,3 +147,9 @@ Holding or repeating the last value is right for lights but dangerous for motion
 :DATE: 2026-11-12
 :END:
 Spec 03/04 put OSC paths, cue numbers and registers in the Transport Descriptor, but the TD has no field for them. Each event/transactional adapter resolves (TD target, WSC address) to a protocol item through a configured =TargetMap=; OSC and MQTT fall back to dot notation. The forward path stays WSC; no JSON is tunnelled. Propose upstream a =TARGET= TD param that overrides the map when present.
+
+* D-25 Google C++ style, C++23 build, coverage thresholds in CI
+:PROPERTIES:
+:DATE: 2026-11-12
+:END:
+Google C++ style enforced by =clang-format= and =clang-tidy=; files are =.h= / =.cc= (earlier docs said =.hpp=). The build standard is C++23, but a feature is used only once GCC, MSVC and Apple Clang all support it; =absl::StatusOr= stays the error type instead of =std::expected= (D-02). No modules. Coroutines are allowed for long-lived activities (sessions, connections, discovery, transactions) but never created per packet or per shaper tick, since each coroutine frame is a heap allocation (N-01). Unit tests sit next to the code, use fakes and an injected clock; line coverage of at least 90 % for =libwsc/= and 80 % for =src/= (OS backends excluded) is enforced in CI (thresholds confirmed by the user). Updates the "C++20" of D-01.

@@ -12,7 +12,10 @@ Each phase ends with something runnable/testable. Requirement IDs refer to [[fil
 
 * TODO Phase 1 — Skeleton & CI (F-80, N-04)
 - [ ] CMake + vcpkg manifest (abseil, asio, nlohmann-json, gtest)
-- [ ] =-fno-exceptions= / MSVC equivalents on project targets
+- [ ] =-fno-exceptions= / MSVC equivalents on project targets; warnings as errors
+- [ ] =clang-format= / =clang-tidy= checks, sanitizers and =llvm-cov= thresholds in CI (N-06)
+- [ ] Pin minimum compilers; list the C++23 features all three support
+- [ ] =testing/= library: fake clock (other fakes arrive with their interfaces)
 - [ ] GitHub Actions matrix: Linux / Windows / macOS
 - [ ] =platform/paths=, =core/identity= (F-01) with tests
 - [ ] =App::Run(StopToken)= + foreground mode with signal handling

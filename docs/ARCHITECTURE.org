@@ -47,7 +47,7 @@ See [[file:FUNCTIONAL.org][FUNCTIONAL.org]] for what it does, this file for how 
 | Discovery        | =src/discovery/=       | mDNS announcement (per-OS backends + portable fallback)         | [[file:PLATFORM.org][PLATFORM.org]]   |
 | Platform         | =src/platform/=        | Paths, interfaces, socket options, service wrappers             | [[file:PLATFORM.org][PLATFORM.org]]   |
 
-Decisions and their rationale are logged in [[file:DECISIONS.org][DECISIONS.org]].
+Decisions and their rationale are logged in [[file:DECISIONS.org][DECISIONS.org]]. Coding style, module dependency rules and testing standards are in [[file:CODING.org][CODING.org]].
 
 * Roles of the main interfaces
 - =Session= :: a WSC peer. Source on the forward path, sink on the return path.
@@ -70,13 +70,13 @@ src/
 ├── routing/            router (forward, stateless)
 ├── shaping/            arbiter, stream_slot, rate_shaper
 ├── feedback/           feedback_router, feedback_routes
-├── sessions/           session.hpp, websocket, webrtc
-├── translators/        input_translator.hpp, sacn_to_wsc, midi_to_wsc, osc_to_wsc, rdm_to_wsc
-├── outputs/            output_adapter.hpp, registry, artnet/, sacn/, midi/, osc/, rdm/
+├── sessions/           session.h, websocket, webrtc
+├── translators/        input_translator.h, sacn_to_wsc, midi_to_wsc, osc_to_wsc, rdm_to_wsc
+├── outputs/            output_adapter.h, registry, artnet/, sacn/, midi/, osc/, rdm/
 ├── discovery/          mdns_announcer + avahi/, bonjour/, windns/, fallback/
 ├── api/                http server + handlers
 └── platform/           paths, net_interfaces, socket_opts, service_{systemd,win,launchd}
-tests/  fuzz/  tools/  docs/
+tests/ (integration, interop, golden; unit tests sit next to the code)  fuzz/  tools/  docs/
 .github/workflows/ci.yml   vcpkg.json   CMakeLists.txt
 #+end_example
 

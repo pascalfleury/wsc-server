@@ -97,3 +97,4 @@ A WSC gateway server that:
 - N-03 :: Sustain at least 44 Hz per DMX universe for many universes without added jitter beyond one shaper tick.
 - N-04 :: No C++ exceptions in project code.
 - N-05 :: Use C++20 or even C++23 constructs wherever possible.
+- N-06 :: Google C++ style, single-responsibility classes, one-way module dependencies, and unit-test coverage thresholds enforced in CI ([[file:CODING.org][CODING.org]]).

@@ -1,0 +1,123 @@
+#+TITLE: WSC-server — Coding Style and Standards
+#+STARTUP: overview
+
+Applies to all project code (=libwsc/=, =src/=, =tests/=, =fuzz/=, =tools/=). Third-party code keeps its own style. Decision: D-25.
+
+* Base style
+- [[https://google.github.io/styleguide/cppguide.html][Google C++ Style Guide]], enforced by =.clang-format= (=BasedOnStyle: Google=) and =.clang-tidy= at the repository root. CI fails on formatting or tidy findings.
+- Where this file and the Google guide disagree, this file wins; the differences are listed under "Deviations".
+
+** The parts of Google style that matter most here
+| Topic | Rule |
+|-------+------|
+| Files | =snake_case.h= / =snake_case.cc=, tests =snake_case_test.cc=; one class per header (small helper types may share it) |
+| Header guards | =#define= guards from the path: =WSC_SERVER_SRC_SHAPING_RATE_SHAPER_H_= |
+| Includes | path from the repository root (=#include "src/shaping/rate_shaper.h"=); order: own header, C, C++, other libraries, project; include what you use |
+| Types | =PascalCase= (=RateShaper=, =StreamKey=) |
+| Functions | =PascalCase= (=Emit()=); accessors may be =snake_case= (=protocol()=) |
+| Variables | =snake_case=; class members =trailing_underscore_=; struct members without |
+| Constants, enumerators | =kPascalCase= (=kLatestValue=) |
+| Namespaces | =wsc= for the codec library, =wsc_server= for the server; no =using namespace=; file-local helpers in an unnamed namespace |
+| Line length | 80 columns (code only; org files are not wrapped) |
+| Ownership | =std::unique_ptr= for single owners, =std::shared_ptr<const Frame>= only for frames shared between outputs; raw pointers and references never own |
+| Classes | constructors do no fallible work: use a =static absl::StatusOr<std::unique_ptr<T>> Create(...)= factory; single-argument constructors are =explicit=; copy/move declared or deleted explicitly |
+| Inheritance | only public, only to implement an interface (pure virtual class); otherwise composition; =override= always |
+| Casts | C++ casts only; no =reinterpret_cast= on packet bytes (see "Wire data") |
+| Comments | =//= style; every class and non-obvious function says what it is for, not how it is written |
+
+* Language standard
+- The build sets C++23 (=CMAKE_CXX_STANDARD 23=, extensions off). Minimum toolchains: to be pinned in phase 1 from what the three CI images provide.
+- A C++20/23 feature may be used once it compiles on all three CI toolchains (GCC/libstdc++, MSVC, Apple Clang/libc++). Apple's libc++ is usually the one that lags. Until then, use the Abseil equivalent.
+- No exceptions, no RTTI (=-fno-exceptions -fno-rtti= and MSVC equivalents); errors are =absl::Status= / =absl::StatusOr<T>=, always checked.
+
+** Preferred constructs
+| Instead of | Use |
+|------------+-----|
+| pointer + length, =const std::vector<T>&= parameters | =std::span<const T>= |
+| =const std::string&= parameters | =std::string_view= |
+| hand-written loops over containers | range-based =for=, =std::ranges= algorithms and views (=std::views::filter=, =transform=, =enumerate=, ...) |
+| =enable_if=, unconstrained templates | concepts and =requires= |
+| =int= / =bool= / macro "kinds" | =enum class= with an explicit underlying type; =std::to_underlying=; =using enum= inside =switch= |
+| hand-written =operator===, =operator<= | defaulted =operator===, =operator<=>= |
+| macros, magic numbers | =constexpr= / =consteval= / =constinit= |
+| field-by-field struct setup | designated initialisers |
+| shifts and masks for byte order, =memcpy= type punning | =<bit>=: =std::byteswap=, =std::endian=, =std::bit_cast=, =std::has_single_bit= |
+| out-parameters, sentinel values | =absl::StatusOr<T>=, =std::optional<T>= (with =and_then= / =transform= / =or_else=) |
+| =printf=, stream formatting | =std::format= (logging through =absl/log=) |
+| own stop flags | =std::stop_token= / =std::jthread= |
+| =std::function= for callbacks | =absl::AnyInvocable= (move-only, no allocation for small callables) |
+| =std::unordered_map=, =std::map= on the packet path | =absl::flat_hash_map=, =absl::InlinedVector= |
+- =[[nodiscard]]= on functions whose result must not be dropped (=absl::Status= already is). =noexcept= on move operations.
+- =auto= when the type is obvious from the right-hand side or is noise (iterators, lambdas); spell the type otherwise.
+
+** Coroutines
+- Allowed at coarse granularity: one coroutine per long-lived activity (session lifecycle, WebRTC signalling, connect/reconnect loops, discovery cycles, config API work, a transaction's retry/timeout sequence). The frame is allocated once when the activity starts.
+- Not allowed per packet or per shaper tick: creating a coroutine there allocates a frame each time and breaks N-01. A long-lived coroutine may loop over packets; it must not spawn one per packet.
+- With Asio: =asio::awaitable= with =asio::as_tuple= (error codes, no exceptions), always bound to the component's strand.
+
+** Not used
+- =std::expected=: we use =absl::StatusOr= everywhere (D-02); one error type, not two.
+- Modules: build-system and tooling support is still uneven across the three platforms.
+- Singletons and mutable globals. Static objects must be trivially destructible (Google rule).
+
+** Deviations from the Google guide
+- C++23 instead of the guide's C++20 baseline.
+- =std::ranges= and views are encouraged, not merely tolerated.
+- =std::format= is allowed.
+
+* Wire data
+- Parsers read from =std::span<const uint8_t>= with explicit big-endian load/store helpers; no casting of byte buffers to packed structs.
+- Every length and offset is checked before use; a parser returns =absl::StatusOr= and never reads past the span.
+- Decoded messages are views into the Frame; they must not outlive it.
+
+* Single responsibility
+- A class has one job that fits in one sentence without "and". If the header comment needs "and", split the class.
+- A class is one of: a value type (data, no I/O), a parser/encoder (bytes <-> values, no I/O), a policy (decides, owns no sockets), an I/O endpoint (owns a socket or device, decides nothing), or a coordinator that wires the others together. Mixing two of these in one class is the usual sign that it should be split.
+- Dependencies are passed to the constructor as interfaces. A class never creates its own collaborators and never reaches for globals; this is what makes it testable with fakes.
+- Time comes from an injected clock, never from =absl::Now()= directly inside policy code.
+- Threading: a class is either confined to one strand (the default, documented in its header) or explicitly thread-safe. It is never "sometimes locked".
+
+* Modules
+- Each directory under =src/= is one CMake library target with its dependencies declared; =libwsc/= depends only on the standard library and Abseil.
+- Dependencies point one way, no cycles:
+  #+begin_example
+  libwsc, memory, core/enums              (no project dependencies beyond these)
+     ^
+  shaping, routing, feedback              (policies: no sockets, no OS calls)
+     ^
+  sessions, outputs, translators, discovery, api, platform   (I/O)
+     ^
+  core/app                                (wires everything; the only place that knows all modules)
+  #+end_example
+- Modules talk through the interface headers (=OutputAdapter=, =InputTranslator=, =Session=, =FrameSink=). No module includes another module's implementation headers.
+- OS-specific code lives only in =src/platform/= and =src/discovery/= backends; =#ifdef= on the OS is not allowed elsewhere.
+
+* Testing
+- GoogleTest + GoogleMock, FuzzTest. Unit tests sit next to the code (=rate_shaper.cc= / =rate_shaper_test.cc=); =tests/= holds integration tests, interop tests and golden packets.
+- Every class has a unit test. A change in behaviour comes with a test in the same commit; a bug fix comes with a test that fails without the fix.
+- Fakes over mocks: hand-written fakes for =OutputAdapter=, =FrameSink=, =Session= and the clock live in a =testing/= library. Mocks only where the interaction itself is what is being tested.
+- No sleeping and no real sockets in unit tests: time is the fake clock, I/O is a fake. Real sockets (loopback) only in =tests/=.
+- Coverage, measured on Linux with =llvm-cov= in CI, build fails below the threshold:
+  | Scope | Minimum line coverage |
+  |-------+-----------------------|
+  | =libwsc/= | 90 % |
+  | =src/= except OS backends in =platform/= and =discovery/= | 80 % |
+  | OS backends | no threshold; exercised by the three-OS CI and integration tests |
+- Beyond line coverage:
+  - a fuzz target for every parser of untrusted bytes (WSC, sACN, Art-Net, OSC, RDM, config JSON);
+  - golden-packet round trips for the codec;
+  - an allocation-counting test proving N-01 on the forward path;
+  - ASan + UBSan on Linux for every test run, TSan for the concurrency tests.
+- Test names say what is expected: =TEST(RateShaperTest, RepeatsLastFrameAfterKeepaliveInterval)=.
+
+* Tooling
+| Tool | Purpose | When |
+|------+---------+------|
+| =clang-format= | formatting | editor on save; CI check |
+| =clang-tidy= | Google naming, bug-prone patterns, modernisation hints | CI on changed files |
+| compiler warnings | =-Wall -Wextra -Wpedantic -Werror= (MSVC =/W4 /WX=) on project targets | every build |
+| sanitizers | ASan, UBSan, TSan | CI, Linux |
+| =llvm-cov= | coverage thresholds | CI, Linux |
+
+* Open points
+- [ ] Pin minimum compiler versions and list which C++23 library features all three support (phase 1).
