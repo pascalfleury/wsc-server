@@ -117,7 +117,7 @@ Receives WSC frames from return-path translators (MIDI/OSC/RDM) and delivers the
 Not here: the RDM module owns its transaction state (see ADAPTERS.org, D-18). The FeedbackRouter only delivers its final answers to the originating session.
 
 * Open points
-- [ ] Confirm the arbitration defaults (D-22): priority + HTP for lighting, server-side merge with one sACN CID per output.
+- [X] Confirm the arbitration defaults (D-22): priority + HTP for lighting, server-side merge with one sACN CID per output.
 - [ ] Choose the default pool sizes and expose them in config.
 - [ ] Feedback JSON schema details.
 - [ ] How sessions are selected in =FeedbackRoutes= (session id is ephemeral; by peer address? by client-provided name?).

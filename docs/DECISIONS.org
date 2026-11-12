@@ -132,8 +132,9 @@ Keepalive repeats and the 44 Hz ceiling come from DMX and don't apply to most WS
 * D-22 Arbitration per output stream: merge for lighting, ownership elsewhere
 :PROPERTIES:
 :DATE: 2026-11-12
+:STATUS: confirmed
 :END:
-WSC has no multi-console rules. An arbiter per stream sits between router and shaper. Lighting streams: priority (TD =PRIORITY=, default 100), then HTP per channel, as sACN does; LTP configurable. Partial =STREAM_CHANNELS= go into a per-source 512-byte universe buffer. Machine protocols and =MOTION= / =ENV= targets: exclusive. Other streams: last writer wins. Cues are never arbitrated. sACN output: the server merges and sends one source per output; one CID per session is an option. Defaults to be confirmed by the user.
+WSC has no multi-console rules. An arbiter per stream sits between router and shaper. Lighting streams: priority (TD =PRIORITY=, default 100), then HTP per channel, as sACN does; LTP configurable. Partial =STREAM_CHANNELS= go into a per-source 512-byte universe buffer. Machine protocols and =MOTION= / =ENV= targets: exclusive. Other streams: last writer wins. Cues are never arbitrated. sACN output: the server merges and sends one source per output; one CID per session is an option. Defaults confirmed by the user on 2026-11-12.
 
 * D-23 Source-loss actions and safety rule
 :PROPERTIES:
