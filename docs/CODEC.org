@@ -1,0 +1,115 @@
+#+TITLE: Design — Codec (libwsc) and Sessions
+#+STARTUP: overview
+
+* libwsc
+** Scope
+Static library, no I/O, no threads. Encodes and decodes WSC 1.1.0 packets. Used by sessions (decode/encode), translators (encode) and tests/tools.
+
+** API sketch
+#+begin_src c++
+namespace wsc {
+enum class MessageType : uint16_t {
+  kStreamChannels = 0x1000, kStreamTimecode = 0x1003,
+  kControlCue = 0x2000, kControlParam = 0x2001,
+  kTunnelRaw = 0xE000,
+  kStateQuery = 0xF000, kStateAnswer = 0xF001, kStateError = 0xF004,
+};
+
+// 19 bytes, big-endian (spec 02).
+struct Header {
+  std::array<uint8_t, 3> version;  // [major, minor, patch]; we send [1, 1, 0]
+  MessageType type;
+  Flags flags;                     // TR 0x8000, GW 0x4000, ACK 0x2000, MC 0x1000, TS 0x0800; rest reserved
+  uint32_t id;                     // 1..0xFFFFFFFF, wraps to 1, never 0
+  uint16_t payload_len;
+  uint16_t transport_len;
+};  // preceded on the wire by magic "WSC!"
+
+// Transport Descriptor (spec 05).
+struct TransportDescriptor {
+  Protocol protocol;   // spec codes: DMX512 0x01, ARTNET 0x02, SACN 0x03, ..., RDM 0x05, OSC 0x15, RAW 0xFF
+  Iface iface;         // UDP 0x01, TCP 0x02, SERIAL 0x03, USB 0x04, WEBSOCKET 0x05, HTTP 0x06
+  AddrType addr_type;  // NONE, IPV4, IPV6, SERIAL, USB, HOSTNAME, URL
+  std::span<const uint8_t> addr_data;
+  absl::InlinedVector<Param, 4> params;  // PRIORITY, TTL, BAUD_RATE, SEQUENCE, IFACE_IDX
+};
+
+// Views into a Frame; valid while the Frame is alive.
+struct StreamChannels { uint16_t universe; uint16_t start_channel; std::span<const uint8_t> values; };
+struct ControlParam   { Address addr; ValueType type; std::span<const uint8_t> value; };
+// ... one struct per message type ...
+
+using Body = std::variant<StreamChannels, StreamTimecode, ControlCue, ControlParam,
+                          TunnelRaw, StateQuery, StateAnswer, StateError>;
+
+struct Message {
+  std::shared_ptr<const Frame> frame;  // keeps the views alive
+  Header header;
+  std::optional<TransportDescriptor> descriptor;  // present iff TR = 1
+  Body body;
+};
+
+absl::StatusOr<Message> Decode(std::shared_ptr<const Frame> frame);
+absl::StatusOr<size_t>  Encode(const MessageSpec& spec, std::span<uint8_t> out);
+}  // namespace wsc
+#+end_src
+
+** Rules
+- Decode never copies payload bytes; bodies are =std::span= views.
+- Decode validates lengths before every read; malformed input -> =absl::Status= with a code mappable to a WSC =STATE_ERROR= code.
+- Encode writes into a caller-supplied buffer (a pooled Frame); never allocates.
+- Endianness via explicit load/store helpers (no =reinterpret_cast= of structs).
+- Receiver obligations (spec 02, 07): < 19 bytes or bad magic -> drop silently (=Decode= returns a distinct "drop" status); major version != 1 -> =PROTOCOL_VERSION=; flag invariants (=GW= needs =TR=, =TR= needs =transport_len > 0=, =TR = 0= needs =transport_len = 0=) -> =MISSING_TRANSPORT= / =MISSING_TRANSPORT_FLAG=.
+- Compatibility checks (=(protocol, iface)=, =(type, protocol)=, =TUNNEL_RAW= only with =RAW=) live in libwsc as a =Validate(const Message&)= function (spec 07 asks bindings for one), used by the router and by our encoders.
+- Addresses (spec 03): self-terminating token sequence ending in =0x00=, length-prefixed with u16 in payloads; =0x80= index sentinel (one or two), =0xFE= custom string; unknown tokens are kept as-is and never a parse error.
+- Spec 02's annotated example still shows version =1.0.0=; only the major byte matters for compatibility.
+
+** Testing
+- Golden packets produced with the upstream JS SDK (=@asls/wsc-sdk=) checked in under =tests/golden/=, decode + re-encode round-trip.
+- FuzzTest target on =Decode=.
+
+** Query type extensions: discovery and RDM (=EXT=, F-42, F-53)
+WSC 1.1.0 defines only =STATE_QUERY= type =KEEPALIVE (0x00)=, with no way to discover downstream devices or carry RDM. Our extension, to be proposed upstream:
+| query_type | Name           | =target_id= (UTF-8)                    | Extra payload after =target_id= |
+|------------+----------------+----------------------------------------+---------------------------------|
+| 0x80       | =DISCOVER=     | empty                                  | none                            |
+| 0x81       | =RDM_GET=      | =<uid>/<pid>[/<sub_device>]=, hex, e.g. =6574:00000001/0060= | none |
+| 0x82       | =RDM_SET=      | same                                   | raw parameter data              |
+- =DISCOVER= is generic: the TD's =protocol= picks which device table (ARTNET, SACN, RDM, OSC, MIDI, ...), the TD iface/address optionally narrows it (one Art-Net subnet, one RDMnet Broker, one MIDI port). See ADAPTERS.org, Downstream discovery.
+- Codes start at 0x80 to stay clear of future upstream query types, which will presumably grow from 0x01.
+- Sent with =GW = 1=, =TR = 1=, TD =protocol = RDM= and iface UDP (Art-Net), USB or SERIAL, or TCP for RDMnet (=EXT=, outside spec 05's matrix). For RDMnet the TD address is the Broker (IPV4 / HOSTNAME), or NONE for the Broker found by DNS-SD in the default scope.
+- The RDM module does all RDM mechanics itself (retries, ACK_TIMER polling, ACK_OVERFLOW reassembly, timeouts, discovery); the console gets exactly one final =STATE_ANSWER(query_id = query id)= per query (D-18).
+- =DISCOVER= returns the cached device table as JSON immediately and triggers a background refresh; changes found by the refresh are pushed as feedback (=query_id = 0=). For RDM the table is a list of UIDs.
+- GET/SET return the complete (reassembled) parameter data as raw bytes. Final status: ACK -> =SUCCESS=, NACK -> =ERROR= (NACK reason code in data), no response after retries -> =NOT_FOUND=, port busy / queue full -> =BUSY=.
+- Size: RDM parameter data is at most 231 bytes per message; reassembled overflow responses and device lists stay far below the 65 527-byte =data= limit. If a list is truncated anyway, status =PARTIAL=.
+
+** Open points
+- [ ] Include =(RDM, TCP)= for RDMnet in the upstream proposal.
+- [ ] Confirm =RDM_SET= extra payload after =target_id= is acceptable to the upstream maintainers (a standard decoder would see trailing bytes).
+- [ ] Raise upstream: =TS= flag has no defined timestamp format.
+- [ ] Raise upstream: spec 03/04 put OSC paths / registers in the TD, but the TD has no field for them; propose a =TARGET= param (D-24).
+
+* Sessions
+** Scope
+A =Session= is one connected WSC peer over one transport. It:
+- receives bytes, places them into a pooled Frame, decodes, posts to the Router;
+- sends return-path frames (feedback, STATE_*) to the peer;
+- answers =STATE_QUERY(KEEPALIVE)= and closes after 5000 ms without one; keeps its own outgoing packet ID counter; sends =STATE_ERROR= / ACK answers to its peer (spec 06). No version negotiation beyond the per-packet major check.
+- drops a return-path packet when the transport's send buffer is above a threshold instead of queuing it (spec 06 send-path behaviour); events that must arrive go through the FIFO shaper first.
+
+** Transports
+Both share the =/ws= endpoint: a WebSocket that sends JSON text is a signalling channel, one that sends binary frames is a plain WebSocket WSC session.
+| Transport  | Library                 | Phase | Notes                                   |
+|------------+-------------------------+-------+-----------------------------------------|
+| WebSocket  | libdatachannel C API    | 3     | binary frames, one WSC packet per message; non-standard alternative (spec 06) |
+| WebRTC DC  | libdatachannel C API    | 3     | reference transport; JSON signalling on =/ws= (=offer= -> =answer=, =ice= both ways), host ICE candidates only, label prefix =WSC!DC!= |
+| TCP/serial | Asio                    | opt.  | only if needed                          |
+
+libdatachannel's C++ API throws; we wrap =rtc.h= in our own exception-free classes.
+
+** Lifecycle
+- On close: notify the RDM module to drop answers still owed to this session; release all frames.
+- A session owns a return-path =RateShaper= toward its peer.
+
+** Virtual session
+=SacnToWsc= acts as a virtual session: no return channel; any =STATE_ERROR= addressed to it goes to logs/metrics.

@@ -1,0 +1,99 @@
+#+TITLE: WSC-server — Functional Specification
+#+STARTUP: overview
+
+Requirement IDs (=F-xx=) are referenced from [[file:PLAN.org][PLAN.org]] and the design docs. Spec references (=spec NN=) point to =core/spec/NN-*.md= in the upstream repository (verified 2026-11-12 against WSC 1.1.0). Items marked =EXT= are our own extensions where the spec is silent.
+
+* Scope
+A WSC gateway server that:
+- accepts WSC traffic from consoles and E1.31 from legacy equipment,
+- forwards it to the supported downstream protocols with per-output rate control,
+- returns feedback (MIDI, OSC, RDM) to consoles,
+- is discoverable, configurable over an API, and runs as an OS service on Linux, Windows and macOS.
+
+* Identity
+- F-01 :: Each server has a unique ID (UUID), generated on first start and persisted. It never changes unless the state directory is wiped.
+- F-02 :: The ID is exposed via mDNS TXT record, the config API, and the JSON =data= of the =STATE_ANSWER(SUCCESS)= that answers =STATE_QUERY(KEEPALIVE)= (spec 04 lets the gateway include system information there).
+
+* WSC protocol (forward path)
+- F-10 :: Implement the full WSC 1.1.0 wire format: 19-byte big-endian header, payload up to 65 535 bytes, token-based hierarchical addresses, Transport Descriptor.
+- F-11 :: Support all message types:
+  | Type            |   Code | Handling                                      |
+  |-----------------+--------+-----------------------------------------------|
+  | STREAM_CHANNELS | 0x1000 | Forward, latest-value shaping                 |
+  | STREAM_TIMECODE | 0x1003 | Forward, latest-value shaping                 |
+  | CONTROL_CUE     | 0x2000 | Forward, FIFO (never dropped/duplicated)      |
+  | CONTROL_PARAM   | 0x2001 | Forward, latest-value per address (a write is idempotent: last value wins) |
+  | TUNNEL_RAW      | 0xE000 | Forward, FIFO; TD protocol must be RAW        |
+  | STATE_QUERY     | 0xF000 | KEEPALIVE answered locally; RDM queries (=EXT=, F-42) |
+  | STATE_ANSWER    | 0xF001 | Emitted by server (answers, ACKs, feedback)   |
+  | STATE_ERROR     | 0xF004 | Emitted on protocol/routing/resource errors   |
+- F-12 :: Session per spec 06: states IDLE / CONNECTING / CONNECTED / ERROR. The client sends =STATE_QUERY(KEEPALIVE)= about every 1000 ms; the server answers =STATE_ANSWER(SUCCESS)= and closes a session that has been silent for more than 5000 ms. There is no version negotiation: packets whose major version differs from 1 get =STATE_ERROR(PROTOCOL_VERSION)=; minor/patch differences are accepted. Packet IDs are u32 per sender, 1..0xFFFFFFFF wrapping to 1, never 0; the server keeps its own counter per session.
+- F-13 :: Transports, both from the first milestone: the reference transport (WebRTC DataChannel, JSON signalling =offer= / =answer= / =ice= on =ws://host:port/ws=, server is the answerer, host ICE candidates only, channel label prefix =WSC!DC!=) and plain WebSocket binary frames (one WSC packet per message; allowed by spec 06 as an alternative transport). TCP/serial optional, later.
+- F-14 :: Routing is stateless: each packet's Transport Descriptor determines the output protocol and target. The server enforces the flag invariants (spec 02) and both compatibility matrices (spec 05): =(protocol, iface)= and =(message type, protocol)=.
+- F-15 :: Errors are reported to the originating session with =STATE_ERROR= using the spec 07 codes (=PROTOCOL_VERSION= .. =CONFIG_ERROR=), with the packet =id= set to the offending packet's id. Buffers shorter than 19 bytes or with a wrong magic are dropped silently.
+- F-16 :: When =ACK= is set, the server answers =STATE_ANSWER(query_id = packet id)= once the packet has been forwarded (or =STATE_ERROR= if it could not be).
+- F-17 :: =MC= requests multicast delivery (sACN multicast, Art-Net broadcast); ignored with a log warning for protocols without multicast.
+- F-18 :: =TS= (timestamp prefix) is not specified in WSC 1.1.0: packets with =TS = 1= are rejected with =STATE_ERROR(VALIDATION_FAILED)=. Raise upstream.
+- F-19 :: Unknown message types from a newer minor version get =STATE_ERROR(INVALID_MESSAGE_TYPE)= (spec 07); reserved flag bits and unknown address tokens are ignored (spec 03, 08).
+
+* Change-only senders and rate adaptation
+- F-20 :: Clients may send only on change; the server guarantees downstream protocol liveness.
+- F-21 :: Per cyclic output stream (DMX family, cyclic fieldbus data), a *minimum rate*: the last value is repeated to keep the stream alive. Event and transactional protocols have no repeats.
+- F-22 :: Per output stream, a *maximum rate*: excess updates are coalesced (only the latest is sent), never queued.
+- F-23 :: Discrete events (cues, notes, tunnels) are rate-limited in FIFO order and are never dropped by coalescing nor repeated.
+- F-24 :: Each output protocol supplies default rates; the config API can override them per adapter and per stream.
+- F-25 :: Shaping follows the protocol's delivery model: cyclic, event or transactional (details in [[file:DATAPATH.org][DATAPATH.org]], D-21). Transactional targets get one request in flight, retries and timeouts.
+
+* Several sources on one target
+- F-26 :: Several consoles (sessions, plus the E1.31 input) may address the same output stream. WSC does not define this; the server arbitrates per stream (D-22): lighting streams merge by TD =PRIORITY=, then HTP per channel (LTP configurable); machine protocols and =MOTION= / =ENV= targets are exclusive (first source owns the stream); other streams are last-writer-wins. Cues are never arbitrated.
+- F-27 :: Partial =STREAM_CHANNELS= updates (=start_channel= > 1 or =count= < 512) are applied to a per-source universe buffer; DMX-family outputs always send full universes.
+- F-28 :: A source lost (session closed or timed out, sACN source loss) leaves the merge immediately. When no source remains, the stream applies its loss action: hold, release, or send a safe value (D-23).
+- F-29 :: Safety: exclusive-by-default streams (machine protocols, =MOTION= / =ENV=) must have a configured loss action; until then the server refuses them with =STATE_ERROR(CONFIG_ERROR)=.
+
+* E1.31 (sACN) input
+- F-30 :: Accept E1.31 on configured universes (multicast and unicast).
+- F-31 :: Resolve sACN semantics at the edge: per-universe source priority, source loss after 2.5 s, universe synchronisation, stream termination.
+- F-32 :: Convert each universe into a WSC =STREAM_CHANNELS= packet using a configured mapping =universe -> Transport Descriptor=, and inject it into the normal forward path.
+- F-33 :: Limited functionality by design: DMX channel data only, multiple universes; no cues, params or feedback to the sender.
+
+* Feedback (return path)
+- F-40 :: MIDI in, OSC in and RDM responses are translated into WSC and sent back to consoles (WSC sessions).
+- F-41 :: Unsolicited feedback (MIDI, OSC) is sent as =STATE_ANSWER= with =query_id = 0= and JSON =data= (the spec 1.1.0 replacement for =STATE_NOTIFY=). Which feedback sources go to which sessions is set through the config API; default: all connected sessions. There is no subscription message in the protocol.
+- F-42 :: RDM (=EXT=): consoles send =STATE_QUERY= with a non-standard query type (=DISCOVER= with TD =protocol = RDM=, =RDM_GET=, =RDM_SET=), =GW = 1= and a Transport Descriptor with =protocol = RDM= (allowed: state types may go to any protocol). The RDM response, or a timeout, comes back as =STATE_ANSWER(query_id = query packet id)= / =STATE_ERROR=. Encoding in [[file:CODEC.org][CODEC.org]]; propose upstream.
+- F-43 :: RDM transports, all part of RDM support: Art-Net (ArtRdm/ArtTod, TD iface UDP), USB/serial DMX interfaces (TD iface USB/SERIAL), and RDMnet (E1.33) as a Controller connected to a Broker (TD iface TCP, =EXT=: spec 05's matrix lists only SERIAL, USB, UDP for RDM).
+- F-46 :: The server has its own RDM UID (needed as source UID on every transport). Development uses the ESTA prototype manufacturer range (0x7FF0–0x7FFF); a real ESTA manufacturer ID is needed before release.
+- F-44 :: Return traffic is rate-shaped toward the session with the same policies as F-21..F-23.
+- F-45 :: On session close, its pending RDM transactions are cancelled.
+
+* Output protocols
+- F-50 :: Initial set: sACN, Art-Net, OSC, MIDI (incl. MSC, MTC), RDM.
+- F-51 :: Later: the remaining protocols listed by the WSC spec (KiNET, MIDI 2.0, NDI, VISCA, Modbus, ...), added as =OutputAdapter= plugins.
+- F-52 :: Protocols are selectable per network interface where applicable.
+- F-56 :: WSC addresses are mapped to protocol items (OSC path, MIDI message, Modbus register, ...) by a per-adapter, API-configured target map; the TD has no field for them although spec 03/04 say they belong there (D-24). OSC and MQTT fall back to the address in dot notation as path/topic.
+
+* Downstream discovery
+- F-53 :: The server discovers downstream devices with each protocol's own mechanism and keeps a device table per protocol (details in [[file:ADAPTERS.org][ADAPTERS.org]]). Consoles query it with =STATE_QUERY(DISCOVER)= (=EXT=) and get the table as JSON in =STATE_ANSWER=; additions, removals and changes are pushed as feedback (=query_id = 0=).
+- F-54 :: The same tables are readable through the config API (=GET /devices=, =GET /devices/{protocol}=).
+- F-55 :: Initial protocols: Art-Net, sACN, RDM (all transports), OSC (mDNS / OSCQuery), MIDI (local ports + Identity Request). MIDI-CI and the remaining protocols later.
+
+* Discovery
+- F-60 :: Announce the server via mDNS/DNS-SD with the server ID, protocol version, API port and enabled outputs in TXT records.
+- F-61 :: Use the OS mDNS service (Avahi, Bonjour, Windows DNS-SD); fall back to a built-in responder when unavailable.
+
+* Configuration API
+- F-70 :: REST/JSON API: server info, adapters and streams, rate policies, network interfaces, E1.31 mapping, feedback routing (source -> sessions), sessions status, metrics.
+- F-71 :: Configuration is persisted and applied without restart where possible.
+- F-72 :: Authentication: =TBD= (none in the WSC spec; at least bind-address restriction initially).
+
+* Operation
+- F-80 :: Runs on Linux, Windows and macOS.
+- F-81 :: Runs as a service: systemd, Windows Service, launchd; plus a foreground mode for development.
+- F-82 :: =--install-service= / =--uninstall-service= command-line actions.
+- F-83 :: Metrics: frames in/out, drops (coalesced, pool exhaustion), repeats, errors, per adapter and stream.
+
+* Non-functional
+- N-01 :: No heap allocation on the steady-state packet path (pre-allocated frame pools).
+- N-02 :: Zero-copy fan-out to multiple outputs (=shared_ptr<const Frame>=).
+- N-03 :: Sustain at least 44 Hz per DMX universe for many universes without added jitter beyond one shaper tick.
+- N-04 :: No C++ exceptions in project code.
+- N-05 :: Use C++20 or even C++23 constructs wherever possible.

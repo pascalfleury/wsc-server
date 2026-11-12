@@ -1,0 +1,87 @@
+#+TITLE: WSC-server — Plan
+#+STARTUP: overview
+#+TODO: TODO NEXT WIP | DONE CANCELLED
+
+Each phase ends with something runnable/testable. Requirement IDs refer to [[file:FUNCTIONAL.org][FUNCTIONAL.org]].
+
+* NEXT Phase 0 — Spec study
+- [X] Read WSC spec 01–08 and CHANGELOG (1.1.0)
+- [X] Resolve the =TBV= items in FUNCTIONAL.org, CODEC.org, DATAPATH.org, ADAPTERS.org
+- [ ] Capture golden packets with =@asls/wsc-sdk=
+- [ ] Open upstream issues: =TS= flag format, RDM query types proposal (D-14), =TARGET= TD param (D-24)
+
+* TODO Phase 1 — Skeleton & CI (F-80, N-04)
+- [ ] CMake + vcpkg manifest (abseil, asio, nlohmann-json, gtest)
+- [ ] =-fno-exceptions= / MSVC equivalents on project targets
+- [ ] GitHub Actions matrix: Linux / Windows / macOS
+- [ ] =platform/paths=, =core/identity= (F-01) with tests
+- [ ] =App::Run(StopToken)= + foreground mode with signal handling
+
+* TODO Phase 2 — Memory & codec (F-10, F-11, N-01, N-02)
+- [ ] =Frame=, =FramePool=, =PoolAllocator= + =allocate_shared=; tests incl. allocation-counting test
+- [ ] libwsc decode/encode for all message types, golden round-trip tests
+- [ ] FuzzTest target on Decode
+
+* TODO Phase 3 — First end-to-end path (F-13, F-14, F-20..F-22)
+- [ ] WebSocket session and WebRTC DataChannel session with =/ws= signalling (libdatachannel C API), both from the start (D-15)
+- [ ] Keepalive handling, 5 s session timeout, =ACK= answers
+- [ ] Router (stateless)
+- [ ] RateShaper: latest-value slots + FIFO, adapter-level timer; =DeliveryModel= on adapters (D-21)
+- [ ] Universe buffers for partial =STREAM_CHANNELS= (F-27)
+- [ ] sACN output adapter
+- [ ] Tool: =wsc-send= CLI to drive tests
+- Milestone: upstream JS client (WebRTC) and =wsc-send= (WebSocket) -> server -> sACN visible in a sACN viewer
+
+* TODO Phase 4 — E1.31 input (F-30..F-33)
+- [ ] =SacnToWsc= with priority, source loss, sync, termination
+- [ ] Mapping config universe -> descriptor
+- [ ] Arbiter: priority + HTP/LTP merge, source loss, loss actions (F-26..F-29); first real case is session + sACN input on one universe
+- Milestone: legacy console (sACN) -> server -> sACN/Art-Net out
+
+* TODO Phase 5 — Art-Net output (F-50)
+- [ ] ArtDmx, ArtSync, ArtPoll/ArtPollReply
+
+* TODO Phase 6 — Config & operations (F-70..F-72, F-81..F-83)
+- [ ] ConfigStore + persistence
+- [ ] REST API (cpp-httplib)
+- [ ] Metrics
+- [ ] Service wrappers: systemd, Windows SCM, launchd; install/uninstall
+
+* TODO Phase 7 — Discovery (F-60, F-61)
+- [ ] MdnsAnnouncer with Avahi, dns_sd, Windows DNS-SD
+- [ ] mjansson/mdns fallback
+- [ ] MdnsBrowser (needed by downstream discovery)
+
+* TODO Phase 8 — OSC & MIDI out (F-50)
+- [ ] =TargetMap= (D-24), OSC adapter with dot-notation fallback
+- [ ] MIDI adapter (RtMidi C API): notes, CC, MSC, MTC
+
+* TODO Phase 9 — Feedback (F-40..F-45)
+- [ ] FeedbackRouter, FeedbackRoutes (config), session return shaper
+- [ ] MidiToWsc, OscToWsc
+- [ ] RDM module: =RDM_*= query types (=EXT=), ArtRdm/ArtTod, retries, ACK_TIMER, ACK_OVERFLOW, cached discovery
+- [ ] USB DMX RDM interface (first device TBD)
+- [ ] RDMnet Controller via ETCLabs/RDMnet (Broker discovery, unsolicited responses as feedback)
+- [ ] RDM UID: prototype range for development, ESTA manufacturer ID before release
+
+* TODO Phase 9b — Downstream discovery (F-53..F-55)
+- [ ] =DISCOVER= query type (=EXT=), device-table JSON envelope, change feedback
+- [ ] Art-Net =ArtPoll= / =ArtPollReply=
+- [ ] sACN universe discovery listener
+- [ ] OSC: DNS-SD browse, OSCQuery namespace fetch
+- [ ] MIDI: port enumeration, Identity Request
+- [ ] RDM: hook the RDM module's tables into =DISCOVER=
+- [ ] Config API =/devices=
+
+* TODO Phase 10 — Interop
+- [ ] Interop test suite against the upstream JS client and gateway
+
+* TODO Phase 11 — Remaining protocols (F-51)
+- [ ] Prioritise from the WSC protocol list (KiNET, MIDI 2.0, Modbus, HTTP, VISCA, ...)
+- [ ] With the second transactional adapter: extract the transaction policy from the RDM module; with the second connection-based adapter: shared connection handling
+- [ ] Exclusive arbitration and safety rule exercised by a machine protocol (Modbus first?)
+
+* TODO Phase 12 — Hardening
+- [ ] Load test: many universes at 44 Hz (N-03)
+- [ ] API authentication (F-72)
+- [ ] Packaging per OS

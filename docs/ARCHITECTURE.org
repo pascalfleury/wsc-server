@@ -1,0 +1,84 @@
+#+TITLE: WSC-server — Architecture Overview
+#+STARTUP: overview
+
+* Purpose
+WSC-server is a gateway that receives Web Show Control (WSC) traffic from consoles and forwards it to show-control protocols (Art-Net, sACN, MIDI, OSC, RDM, ...), and routes feedback from those protocols back to the consoles. Protocol reference: https://github.com/ASLS-org/WSC (v1.1.0).
+
+See [[file:FUNCTIONAL.org][FUNCTIONAL.org]] for what it does, this file for how it is put together, and [[file:PLAN.org][PLAN.org]] for the build-out order.
+
+* Guiding principles
+- *One forward path.* Everything that drives devices is WSC by the time it hits the router. Non-WSC inputs (E1.31) are translated into real WSC frames first.
+- *Stateless forward routing.* The router only reads the Transport Descriptor carried by each packet (as the WSC spec requires). No route tables.
+- *State lives at the edges.* Arbitration and rate shaping state live with the output streams; feedback routing lives in the feedback path; RDM transaction state lives in the RDM module.
+- *Not only DMX.* Shaping, arbitration and loss behaviour follow each protocol's delivery model (cyclic, event, transactional; D-21..D-23), not DMX defaults.
+- *No hot-path allocation.* Frames come from pre-allocated pools and are shared (zero-copy) via =std::shared_ptr<const Frame>=.
+- *No exceptions.* Errors are =absl::Status= / =absl::StatusOr<T>=.
+- *Single-purpose classes*, enums for every "kind of" value, portable code with OS specifics isolated in =src/platform/= and =src/discovery/=.
+
+* Data paths
+#+begin_example
+ FORWARD (console -> devices)
+ WSC Session ───────────────┐
+                            ├─► Codec decode ─► Router ─► Arbiter ─► RateShaper ─► OutputAdapters
+ E1.31 in ─► SacnToWsc ─────┘   (single path)  (stateless, (merge /                 (Art-Net, sACN,
+             (encodes WSC)                      descriptor  ownership,               MIDI, OSC, RDM req)
+                                                only)       source loss)
+
+ RETURN (devices -> console)
+ MIDI in ─┐
+ OSC in  ─┼─► XxxToWsc ─► FeedbackRouter ─► RateShaper ─► WSC Session(s) ─► console
+ RDM resp ┘   (encode)    (feedback routes +
+                          RDM final answers)
+#+end_example
+
+* Components
+| Component        | Directory              | Responsibility                                                  | Design doc     |
+|------------------+------------------------+-----------------------------------------------------------------+----------------|
+| Codec            | =libwsc/=              | Encode/decode WSC packets; zero-copy views; no I/O              | [[file:CODEC.org][CODEC.org]]      |
+| Frame memory     | =src/memory/=          | Frame, FramePool, PoolAllocator                                 | [[file:DATAPATH.org][DATAPATH.org]]   |
+| Router           | =src/routing/=         | Forward routing from Transport Descriptor to output stream      | [[file:DATAPATH.org][DATAPATH.org]]   |
+| RateShaper       | =src/shaping/=         | Arbitration and source loss per stream; min/max rate, double-buffered slots, FIFO, transactions by delivery model | [[file:DATAPATH.org][DATAPATH.org]]   |
+| Feedback         | =src/feedback/=        | Feedback routes, return routing to sessions                     | [[file:DATAPATH.org][DATAPATH.org]]   |
+| Sessions         | =src/sessions/=        | WSC transports (WebSocket, WebRTC), session lifecycle           | [[file:CODEC.org][CODEC.org]]      |
+| Output adapters  | =src/outputs/=         | Forward sinks: Art-Net, sACN, MIDI, OSC; RDM module (both ways) | [[file:ADAPTERS.org][ADAPTERS.org]]   |
+| Input translators| =src/translators/=     | Other protocol -> WSC frames (sACN in, MIDI/OSC feedback)       | [[file:ADAPTERS.org][ADAPTERS.org]]   |
+| Core             | =src/core/=            | App lifecycle (=Run(StopToken)=), identity, config store, enums | [[file:PLATFORM.org][PLATFORM.org]]   |
+| Config API       | =src/api/=             | REST/JSON configuration and status                              | [[file:PLATFORM.org][PLATFORM.org]]   |
+| Discovery        | =src/discovery/=       | mDNS announcement (per-OS backends + portable fallback)         | [[file:PLATFORM.org][PLATFORM.org]]   |
+| Platform         | =src/platform/=        | Paths, interfaces, socket options, service wrappers             | [[file:PLATFORM.org][PLATFORM.org]]   |
+
+Decisions and their rationale are logged in [[file:DECISIONS.org][DECISIONS.org]].
+
+* Roles of the main interfaces
+- =Session= :: a WSC peer. Source on the forward path, sink on the return path.
+- =InputTranslator= :: converts a foreign protocol into WSC Frames and hands them to either the forward sink (=SacnToWsc=) or the return sink (=MidiToWsc=, =OscToWsc=). RDM is a single module covering both directions (D-18).
+- =OutputAdapter= :: forward sink for one protocol; owns its streams and their shapers; serialises to the wire.
+- A physical device (e.g. a MIDI port) may appear both as an =OutputAdapter= and an =InputTranslator=, sharing one device handle.
+
+* Concurrency model
+- One =asio::io_context= run by a small thread pool.
+- One strand per session and per output adapter; shaper timers run on the adapter's strand, so per-stream state needs no locks or atomics.
+- Cross-component hand-off is =asio::post(strand, ...)= carrying =shared_ptr<const Frame>=.
+- The config API publishes changes by posting onto the owning strands.
+
+* Repository layout
+#+begin_example
+libwsc/                 codec (static lib, no I/O)
+src/
+├── core/               app, identity, config_store, enums
+├── memory/             frame, frame_pool, pool_allocator
+├── routing/            router (forward, stateless)
+├── shaping/            arbiter, stream_slot, rate_shaper
+├── feedback/           feedback_router, feedback_routes
+├── sessions/           session.hpp, websocket, webrtc
+├── translators/        input_translator.hpp, sacn_to_wsc, midi_to_wsc, osc_to_wsc, rdm_to_wsc
+├── outputs/            output_adapter.hpp, registry, artnet/, sacn/, midi/, osc/, rdm/
+├── discovery/          mdns_announcer + avahi/, bonjour/, windns/, fallback/
+├── api/                http server + handlers
+└── platform/           paths, net_interfaces, socket_opts, service_{systemd,win,launchd}
+tests/  fuzz/  tools/  docs/
+.github/workflows/ci.yml   vcpkg.json   CMakeLists.txt
+#+end_example
+
+* Dependencies (summary, see PLATFORM.org)
+Abseil, standalone Asio, libdatachannel (C API), RtMidi (C API), ETCLabs/RDMnet (C), nlohmann/json (=JSON_NOEXCEPTION=), cpp-httplib (=CPPHTTPLIB_NO_EXCEPTIONS=), GoogleTest, FuzzTest; Avahi / dns_sd / Windows DNS-SD, mjansson/mdns as fallback. Managed with CMake + vcpkg.

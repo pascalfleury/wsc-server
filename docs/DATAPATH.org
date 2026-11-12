@@ -1,0 +1,123 @@
+#+TITLE: Design — Data Path (Memory, Routing, Shaping, Feedback)
+#+STARTUP: overview
+
+* Frame memory (=src/memory/=)
+** Frame
+Immutable after being filled (decode or encode). Shared read-only as =std::shared_ptr<const Frame>=.
+
+** FramePool
+- Pre-allocated at startup, two size classes:
+  | Class | Size             | Typical use                         |
+  |-------+------------------+-------------------------------------|
+  | small | ~1 KiB           | one DMX universe + headers          |
+  | large | 65 535 + 19 B    | max WSC payload, tunnels            |
+- Capacity per class is configurable (sized from expected universes/streams).
+- Lock-free free list per class (threads from the io_context pool acquire).
+
+** shared_ptr without heap allocation
+=std::make_shared= / =shared_ptr(p, deleter)= allocate a control block on the heap. Instead use =std::allocate_shared<Frame>(PoolAllocator{pool})= so the control block and the Frame share one pool slot; the slot returns to the pool when the last owner releases it. Slot size accounts for the control block.
+
+** Exhaustion policy (no allocation on the hot path)
+- State streams: drop the incoming frame, count it; the next update supersedes.
+- Events: reply =STATE_ERROR= (resource exhausted) to the originating session.
+- Metric + rate-limited log warning in both cases.
+
+* Forward router (=src/routing/=)
+- Input: =wsc::Message= (decoded, with Transport Descriptor).
+- Output: =(OutputAdapter&, StreamKey)= then =post= to the adapter's strand.
+- Stateless: no route tables. Runs =wsc::Validate= first (flag invariants, compatibility matrices), then maps to an adapter; no adapter for the protocol -> =STATE_ERROR(NO_ROUTE)=, adapter disabled by config -> =CONFIG_ERROR=.
+- =StreamKey= = TD (protocol, iface, address, =IFACE_IDX=) + the per-message key: universe for =STREAM_CHANNELS= (a DMX universe for the DMX family, a register block or address group for Modbus/OSC), address for =CONTROL_PARAM=.
+- The router hands frames to the stream's arbiter (see Arbitration), not straight to the shaper.
+- Fan-out: if a descriptor addresses several outputs, the same =shared_ptr<const Frame>= is posted to each (no copy).
+- =STATE_QUERY(KEEPALIVE)= is answered by the session itself; RDM query types (=EXT=) go to the RDM module, which answers through the FeedbackRouter.
+- =ACK= flag: the adapter reports the send result back to the session, which emits =STATE_ANSWER(query_id = packet id)=.
+
+* Rate shaping (=src/shaping/=)
+** Policies
+The policy depends on the downstream protocol's *delivery model* (D-21), declared by each adapter, and on the message class.
+#+begin_src c++
+enum class DeliveryModel : uint8_t { kCyclic, kEvent, kTransactional };
+enum class ShapingPolicy : uint8_t { kLatestValue, kFifo, kTransaction };
+struct RateLimits {
+  absl::Duration min_send_interval;   // 1 / max_rate: never send faster than this
+  absl::Duration keepalive_interval;  // 1 / min_rate: resend at least this often; zero = never
+};
+#+end_src
+| Delivery model | Protocols | Message class | Policy |
+|----------------+-----------+---------------+--------|
+| Cyclic | DMX512, Art-Net, sACN, KiNET; cyclic fieldbus data (EtherCAT, PROFINET) | =STREAM_CHANNELS= | kLatestValue with keepalive |
+| Event | OSC, MIDI, MSC, MTC, MQTT, WebSocket, tally, GPI/GPO | =STREAM_CHANNELS=, =STREAM_TIMECODE=, =CONTROL_PARAM= | kLatestValue per key, no keepalive |
+| Event | same | =CONTROL_CUE=, =TUNNEL_RAW=, MIDI notes | kFifo |
+| Transactional | RDM / RDMnet, Modbus, HTTP, VISCA, CANopen SDO | state messages | kTransaction: one request in flight per target; updates arriving meanwhile are coalesced, the next request carries the latest value |
+| Transactional | same | events, queries | kTransaction, queued in FIFO order |
+- Timecode on a cyclic protocol (Art-Net =ArtTimeCode=) is kLatestValue without keepalive: timecode that stops must look stopped.
+- kTransaction: retries, timeouts and exactly one final =STATE_ANSWER= / =STATE_ERROR= per request when =ACK= is set or the message is a query. Built inside the RDM module first; moved into =src/shaping/= when the second transactional adapter (Modbus or HTTP) arrives.
+
+** Double-buffered stream slot (kLatestValue)
+#+begin_src c++
+struct StreamSlot {
+  std::shared_ptr<const Frame> back;   // latest received (written via post to strand)
+  std::shared_ptr<const Frame> front;  // last sent; repeated for keepalive
+  bool dirty = false;
+  absl::Time last_sent;
+};
+// tick:
+//   if (dirty && now - last_sent >= max_rate_interval) { swap(front, back); send(front); dirty = false; }
+//   else if (now - last_sent >= min_rate_interval)       { send(front); }   // keepalive
+#+end_src
+- Slots live on the adapter's strand: no locks, no =atomic<shared_ptr>= (not fully available in Apple libc++ anyway).
+- The adapter keeps a pre-built wire packet per stream; a swap rewrites only the data portion, a keepalive resends the bytes unchanged.
+- Timers: one timer per adapter scanning due streams (min-heap by next deadline), not one timer per stream.
+
+** FIFO (kFifo)
+Bounded ring of =shared_ptr<const Frame>=, drained at max rate. Never coalesced or repeated. Overflow -> =STATE_ERROR= to originator.
+
+* Arbitration and source loss (=src/shaping/=)
+WSC says nothing about several consoles driving the same target. Each output stream has an arbiter, on the adapter strand, between the router and the shaper (D-22, D-23). A *source* is a session or the =SacnToWsc= virtual session; for sACN input, each upstream sACN source is already resolved by =SacnToWsc=.
+
+** Universe buffers (cyclic DMX-family streams)
+- =STREAM_CHANNELS= may carry a slice (=start_channel=, =count=). Each source has a 512-byte buffer per stream; a slice is written at =start_channel=, so the adapter always sends complete universes.
+- The double-buffered slot holds two 512-byte buffers (merged result, last sent) instead of frame pointers; a keepalive resends the last-sent buffer.
+- Buffers come from a pre-allocated pool sized by =max_sources_per_stream= (config); a source beyond the limit gets =STATE_ERROR(CONFIG_ERROR)=.
+
+** Arbitration modes
+#+begin_src c++
+enum class Arbitration : uint8_t { kPriorityHtp, kPriorityLtp, kExclusive, kLastWriter };
+enum class LossAction : uint8_t { kHold, kRelease, kSafeValue };
+#+end_src
+| Mode | Behaviour | Default for |
+|------+-----------+-------------|
+| kPriorityHtp | highest TD =PRIORITY= (default 100) wins; equal priority -> highest value per slot | cyclic lighting streams |
+| kPriorityLtp | highest priority wins; equal priority -> latest update per slot | (config) |
+| kExclusive | first source owns the stream until it stops or is lost; others get =STATE_ERROR(CONFIG_ERROR)= | machine protocols (Modbus, CANopen, EtherCAT, PROFINET), =MOTION= and =ENV= addresses |
+| kLastWriter | latest update wins, no per-slot merge | event and transactional streams |
+- Cues (=CONTROL_CUE=) are never arbitrated: all go out in arrival order. Timecode: kExclusive.
+- sACN output: by default the server merges and sends as one source (one CID per output). Option: one sACN source (own CID) per session, so downstream sACN receivers merge instead.
+
+** Source loss
+- A source is lost when its session closes or times out (5 s, spec 06) or =SacnToWsc= reports sACN source loss (2.5 s).
+- A lost source is removed from the merge at once (otherwise HTP would keep its levels up). When the last source of a stream is gone, the stream applies its =LossAction=:
+  | Action | Effect |
+  |--------+--------|
+  | kHold | keep sending the last value (keepalive continues); lighting default |
+  | kRelease | stop sending; sACN sends stream termination |
+  | kSafeValue | send the configured safe value or command once (e.g. stop axis, fog off), then hold it |
+- Safety rule: streams with the kExclusive default (machine protocols, =MOTION= / =ENV= addresses) have no default =LossAction=. The server refuses them with =STATE_ERROR(CONFIG_ERROR)= until one is configured. =STREAM_CHANNELS= has no WSC address, so for those the rule is tied to the output target's protocol and config.
+
+* Feedback (=src/feedback/=)
+** FeedbackRouter
+Receives WSC frames from return-path translators (MIDI/OSC/RDM) and delivers them to sessions through each session's return shaper.
+
+** Delivery of unsolicited feedback
+- WSC has no subscribe message. Feedback is sent as =STATE_ANSWER(query_id = 0, format = JSON)= (spec 1.1.0's replacement for =STATE_NOTIFY=).
+- =FeedbackRoutes= (from config): feedback source (adapter + optional address filter) -> sessions. Default: all connected sessions.
+- JSON shape (proposal): ={"source": "midi", "port": "...", "address": "audio.track.3.level", "value": 0.42}=; address uses WSC dot notation when a mapping exists, raw message otherwise.
+
+** RDM transactions
+Not here: the RDM module owns its transaction state (see ADAPTERS.org, D-18). The FeedbackRouter only delivers its final answers to the originating session.
+
+* Open points
+- [ ] Confirm the arbitration defaults (D-22): priority + HTP for lighting, server-side merge with one sACN CID per output.
+- [ ] Choose the default pool sizes and expose them in config.
+- [ ] Feedback JSON schema details.
+- [ ] How sessions are selected in =FeedbackRoutes= (session id is ephemeral; by peer address? by client-provided name?).

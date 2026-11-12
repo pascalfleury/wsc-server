@@ -1,0 +1,123 @@
+#+TITLE: Design — Output Adapters and Input Translators
+#+STARTUP: overview
+
+* Interfaces
+#+begin_src c++
+// Values are the spec 05 downstream protocol codes, used as-is.
+enum class Protocol : uint8_t { kDmx512 = 0x01, kArtNet = 0x02, kSacn = 0x03, kKinet = 0x04, kRdm = 0x05,
+                                kMidi = 0x10, kMidi2 = 0x11, kMsc = 0x12, kMtc = 0x13, kMmc = 0x14, kOsc = 0x15, /* ... */ kRaw = 0xFF };
+
+class OutputAdapter {            // forward sink
+ public:
+  virtual Protocol protocol() const = 0;
+  virtual DeliveryModel model() const = 0;                     // cyclic / event / transactional (D-21)
+  virtual Capabilities caps() const = 0;                       // accepted message classes
+  virtual ShapingDefaults defaults(const StreamKey&) const = 0;
+  virtual absl::Status Configure(const nlohmann::json&) = 0;
+  virtual void Emit(const StreamKey&, const wsc::Message&) = 0; // called by its shaper
+  virtual ~OutputAdapter() = default;
+};
+
+class InputTranslator {          // foreign protocol -> WSC frames
+ public:
+  virtual Protocol protocol() const = 0;
+  virtual absl::Status Configure(const nlohmann::json&) = 0;
+  virtual absl::Status Start(FrameSink& sink) = 0;  // forward sink or feedback sink
+  virtual void Stop() = 0;
+  virtual ~InputTranslator() = default;
+};
+#+end_src
+- Registered in an =AdapterRegistry= keyed by =Protocol=.
+- A physical device used in both directions (MIDI port, Art-Net node) shares one device handle between its =OutputAdapter= and =InputTranslator=.
+
+* Output adapters
+| Adapter | Model | Transport                 | Default keepalive / max rate | Notes                                 |
+|---------+-------+---------------------------+------------------------------+---------------------------------------|
+| sACN    | cyclic | UDP 5568, multicast/unicast | 1 s / 44 Hz                | priority from TD =PRIORITY= (default 100), sync, termination (3 pkts); =MC= -> multicast |
+| Art-Net | cyclic | UDP 6454, uni/broadcast   | 1 s / 44 Hz                  | ArtDmx, ArtSync, ArtPoll replies; Art-Net only asks ~4 s, 1 s matches sACN receivers |
+| OSC     | event | UDP (TCP later)           | n/a / configurable           | target mapping, see below             |
+| MIDI    | event | RtMidi C API              | n/a / bandwidth-limited      | notes, CC, MSC, MTC; target mapping   |
+| RDM     | transactional | Art-Net ArtRdm, USB DMX, RDMnet (E1.33) | request-driven | self-contained module, see below |
+| RAW     | event | per TD iface              | n/a / configurable           | =TUNNEL_RAW= passthrough              |
+44 Hz is the DMX512 frame-rate ceiling for a full 512-slot universe. sACN receivers declare a source lost after 2.5 s without data, so keepalive must stay well under that.
+Later: KiNET, MIDI 2.0, NDI, VISCA, Modbus, ... per WSC protocol list. Expected models: KiNET cyclic; MIDI 2.0, MQTT, WebSocket, tally, GPI/GPO event; Modbus, HTTP, VISCA, CANopen SDO transactional; EtherCAT / PROFINET cyclic. The model list is our own reading of these protocols, to check when each adapter is designed.
+
+* Target mapping (WSC address -> protocol target)
+Spec 03 and 04 say that software-specific identifiers (OSC path, QLab cue number, Modbus register) belong in the Transport Descriptor, not in the WSC address. But the TD has no field for them: its address types are network/serial/USB locations, and its five params are =PRIORITY=, =TTL=, =BAUD_RATE=, =SEQUENCE=, =IFACE_IDX=. Only an HTTP =URL= address can carry a path. So the gateway has to supply the mapping (D-24):
+- Each event/transactional adapter has a =TargetMap= from config: (TD target, WSC address pattern) -> protocol item. Examples:
+  | Protocol | Protocol item |
+  |----------+---------------|
+  | OSC | path + argument type, e.g. =lighting.cue.INDEX= -> =/eos/cue/{index}/fire= |
+  | MIDI | message kind + channel + number (note, CC, program change), MSC command and cue list |
+  | Modbus | unit id + register/coil + data type |
+  | VISCA | command (preset recall, pan/tilt) |
+  | HTTP | method + path + body template |
+  | MQTT | topic + payload template |
+- =INDEX= segments become placeholders. Without a configured entry, OSC and MQTT fall back to the dot notation as path/topic (=lighting.cue.42= -> =/lighting/cue/42=); other protocols answer =STATE_ERROR(NO_ROUTE)=.
+- The same map, read backwards, turns OSC/MIDI feedback into WSC addresses for the feedback JSON (F-41).
+- Not the router's job: the router stays stateless and only picks the adapter; the adapter resolves the item.
+- Upstream proposal: a TD param (e.g. =0x06 TARGET=, UTF-8) carrying the protocol item, so consoles can send it directly. When present, it overrides the map.
+
+* Building blocks for non-DMX adapters
+Introduced with their first user, extracted when a second adapter needs them:
+- *Transactions* (=kTransaction= policy, DATAPATH.org): one request in flight per target, retries, timeouts, one final answer. First user: RDM module; next: Modbus, HTTP, VISCA.
+- *Connections*: connect, reconnect with back-off, connection state reported through the config API (=GET /outputs/{id}=) and as feedback (=query_id = 0=). First user: RDMnet (Broker connection, handled by the library); next: Modbus TCP, MQTT, WebSocket, HTTP keep-alive.
+- *Feedback beyond MIDI/OSC/RDM*: Modbus register reads, VISCA inquiries, GPI inputs, tally become =InputTranslator= sources with the same =FeedbackRoutes=, when those adapters arrive.
+
+* Input translators
+** SacnToWsc (forward)
+- Joins configured universes on chosen interfaces.
+- Resolves sACN semantics before conversion:
+  - highest priority source wins per universe;
+  - source loss after 2.5 s;
+  - universe synchronisation (hold until sync);
+  - stream termination flag.
+- Encodes a WSC =STREAM_CHANNELS= into a pooled Frame with the Transport Descriptor from the mapping =universe -> descriptor= (the winning source's sACN priority goes into the TD =PRIORITY= param), then injects it into the same decode -> router path as session traffic.
+- Acts as a virtual session (no return path).
+- Limited functionality: DMX channel data, multiple universes.
+
+** MidiToWsc / OscToWsc (return)
+- Translate incoming messages to =STATE_ANSWER(query_id = 0)= JSON (address mapping configurable), deliver to FeedbackRouter -> sessions selected by =FeedbackRoutes=.
+- Continuous controls -> latest-value shaping; notes/triggers -> FIFO.
+
+** RDM module (both directions)
+RDM is request/response and doesn't fit the stream/feedback split, so it is one module (=src/outputs/rdm/=) that owns all RDM mechanics (D-18):
+- receives =RDM_*= queries (=EXT=, CODEC.org) from the router;
+- per port: one request in flight, transaction numbers, retries, timeouts;
+- ACK_TIMER: waits the device's estimated time and polls again (=QUEUED_MESSAGE=) without involving the console;
+- ACK_OVERFLOW: repeats the GET and concatenates the parts;
+- discovery (ArtTodRequest/ArtTodData, USB widget discovery, RDMnet Broker client list) in the background, keeping a cached device table per port / Broker;
+- sends exactly one final =STATE_ANSWER= per query, plus device-table changes as feedback (=query_id = 0=), through the FeedbackRouter.
+
+*** Transports inside the module
+| Transport  | Implementation | Device changes reach us by                    |
+|------------+----------------+-----------------------------------------------|
+| Art-Net    | our code (ArtRdm, ArtTod*) | polling =QUEUED_MESSAGE= (budget per port) |
+| USB/serial DMX | our code, per widget | polling =QUEUED_MESSAGE=; RDM traffic lowers the DMX refresh rate on that line |
+| RDMnet     | ETCLabs/RDMnet C library (Apache-2.0, E1.33-2019, Win/macOS/Linux, EtcPal), Controller role | unsolicited RDM responses pushed by devices through the Broker, no polling |
+- RDM can be switched off per port (some older fixtures misbehave on RDM traffic).
+- The server does not run its own Broker or an RDMnet Gateway role for its DMX ports (not needed to talk to RDMnet devices; can be added later from the same library).
+
+* Downstream discovery
+Each adapter that can find devices keeps its own device table, refreshed in the background (D-20). A console asks with =STATE_QUERY(DISCOVER)= (=EXT=, CODEC.org), with the TD =protocol= choosing the table; it gets the current table at once, and later changes arrive as feedback (=query_id = 0=). The config API exposes the same tables.
+
+| Protocol | Mechanism | What the table holds | Notes |
+|----------+-----------+----------------------+-------|
+| Art-Net  | =ArtPoll= broadcast, collect =ArtPollReply= | node name, IP/MAC, ports and universes, firmware, OEM code | the server also answers =ArtPoll=, so consoles can find it |
+| sACN     | listen to Universe Discovery packets (E1.31-2016, universe 64214) | sources: CID, name, universes they send | receivers can't be discovered with sACN |
+| RDM      | RDM module: Art-Net TOD, USB widget discovery, RDMnet Broker client list | UIDs, plus =DEVICE_INFO= when fetched | see RDM module |
+| OSC      | DNS-SD browse =_osc._udp=, =_osc._tcp=, =_oscjson._tcp=; for OSCQuery services, fetch the JSON namespace over HTTP | host, port, name; for OSCQuery the address tree with types, ranges, access | OSCQuery is a de-facto standard (Vidvox), not part of OSC 1.0 |
+| MIDI     | enumerate local ports (RtMidi), send Identity Request SysEx (=F0 7E 7F 06 01 F7=), collect Identity Replies | port names, manufacturer, family, model, version | network MIDI (RTP-MIDI =_apple-midi._udp=) appears as OS ports; MIDI-CI later |
+
+- Discovery traffic is sent only on interfaces/ports enabled for that protocol, and at a low, configurable rate (it shares the wire with show data).
+- JSON entries share a common envelope: ={"protocol": "artnet", "id": "<stable key>", "name": "...", "address": {...}, "details": {...}}=; =id= is what later changes refer to.
+- Not included: KiNET, AES70/OCA, NDI, Dante discovery (later, with their adapters).
+
+* Open points
+- [ ] =TargetMap= config schema per protocol (OSC and MIDI first).
+- [ ] Defaults above come from secondary sources (vendor docs, forums); check against the E1.31 and Art-Net 4 texts when available.
+- [ ] USB DMX interface support list (Enttec Pro first?).
+- [ ] Embed an RDMnet Broker for networks that have none? (The library has one, without LLRP target / RDM responder.)
+- [ ] Use OSCQuery =LISTEN= for OSC feedback where a device supports it, instead of manual mapping.
+- [ ] Verify against the specs: sACN discovery universe and interval, MIDI Identity Request bytes, OSC DNS-SD service names.
+- [ ] Get an ESTA manufacturer ID for the server's RDM UID (F-46).

@@ -1,0 +1,148 @@
+#+TITLE: WSC-server — Decision Log
+#+STARTUP: overview
+
+New decisions are appended. Superseded ones are kept and marked.
+
+* D-01 C++20, CMake + vcpkg, three-OS CI from day one
+:PROPERTIES:
+:DATE: 2026-11-11
+:END:
+Required to run on Linux, Windows, macOS. vcpkg is the smoothest on Windows. CI catches platform drift early.
+
+* D-02 No C++ exceptions; Abseil Status/StatusOr
+:PROPERTIES:
+:DATE: 2026-11-11
+:END:
+Coding guideline. Abseil provides Status/StatusOr, containers, logging, flags, time — replaces tl::expected and spdlog. Libraries with throwing C++ APIs (libdatachannel, RtMidi) are used through their C APIs.
+
+* D-03 Stateless forward router, descriptor-only
+:PROPERTIES:
+:DATE: 2026-11-11
+:END:
+Mandated by the WSC spec. No configured route tables in the router.
+
+* D-04 E1.31 input is translated into WSC before routing
+:PROPERTIES:
+:DATE: 2026-11-11
+:END:
+E1.31 is a migration path for existing equipment. =SacnToWsc= resolves sACN semantics (priority, loss, sync, termination) and encodes real WSC =STREAM_CHANNELS= frames, which go through the normal decode -> router path. Single forward path, identical semantics, router stays stateless. The mapping universe -> Transport Descriptor belongs to the translator's config. Supersedes an earlier idea of config-based routes in the router.
+
+* D-05 Feedback is a separate return path
+:PROPERTIES:
+:DATE: 2026-11-11
+:END:
+MIDI in, OSC in and RDM responses are feedback to consoles, not inputs to the forward path. A =FeedbackRouter= with =FeedbackRoutes= (unsolicited, see D-13) holds the session-related feedback state (RDM: see D-18).
+
+* D-06 Split adapter roles: OutputAdapter / InputTranslator / Session
+:PROPERTIES:
+:DATE: 2026-11-11
+:END:
+Supersedes a single bidirectional =ProtocolAdapter=. Each class has one purpose; devices used in both directions share a handle.
+
+* D-07 Pooled frames shared via allocate_shared
+:PROPERTIES:
+:DATE: 2026-11-11
+:END:
+Pre-allocated pools (small/large classes). =std::allocate_shared= with a pool allocator puts the control block in the pool slot -> no heap on the hot path. Decoded messages are views into the Frame -> zero-copy fan-out. On exhaustion: drop state frames, =STATE_ERROR= for events.
+
+* D-08 Double-buffered latest-value slots; FIFO for events
+:PROPERTIES:
+:DATE: 2026-11-11
+:END:
+Back/front =shared_ptr= slots per stream on the adapter strand (no locks, no =atomic<shared_ptr>=, which Apple libc++ lacks). Events are never coalesced or repeated.
+
+* D-09 Strand-per-component concurrency on one io_context
+:PROPERTIES:
+:DATE: 2026-11-11
+:END:
+Standalone Asio, thread pool, one strand per session and per adapter.
+
+* D-10 mDNS via OS services, mjansson/mdns as fallback
+:PROPERTIES:
+:DATE: 2026-11-11
+:END:
+Avahi / dns_sd / Windows DNS-SD coexist correctly with other responders on port 5353; portable responder only as fallback.
+
+* D-11 Config API on cpp-httplib, JSON via nlohmann (no-exception mode)
+:PROPERTIES:
+:DATE: 2026-11-11
+:END:
+Low-traffic API; thread-per-connection acceptable. Boost.Beast rejected as too heavy. Alternative kept in mind: protobuf-defined config with JSON mapping.
+
+* D-12 RDM over Art-Net and USB DMX; RDMnet out of scope (superseded by D-19)
+:PROPERTIES:
+:DATE: 2026-11-11
+:END:
+sACN cannot carry RDM. RDMnet (E1.33) can be added later.
+
+* D-13 Unsolicited feedback as STATE_ANSWER(query_id = 0), routed by config
+:PROPERTIES:
+:DATE: 2026-11-12
+:END:
+WSC 1.1.0 has no subscription message; its CHANGELOG says =STATE_NOTIFY= users should migrate to =STATE_ANSWER= with =query_id = 0=. Feedback goes out that way with JSON data, and which sources reach which sessions is configured through the API (default: all sessions). Supersedes the =SubscriptionTable= of D-05.
+
+* D-14 RDM through non-standard STATE_QUERY types (RDM_DISCOVER superseded by D-20)
+:PROPERTIES:
+:DATE: 2026-11-12
+:END:
+The spec lists RDM as a downstream protocol but gives no message to carry RDM requests. We add =RDM_DISCOVER= / =RDM_GET= / =RDM_SET= query types (0x80..0x82) with =GW = 1= and TD =protocol = RDM=; answers via =STATE_ANSWER=. Marked =EXT=, to be proposed upstream. Alternatives rejected: server-side RDM only through the config API (console can't drive it), deferring RDM.
+
+* D-15 WebRTC and plain WebSocket transports from the first milestone
+:PROPERTIES:
+:DATE: 2026-11-12
+:END:
+WebRTC DataChannel is the spec's reference transport and the only one the upstream JS client speaks; plain WebSocket is simpler for our own tools. Both are built in phase 3 and share the =/ws= endpoint.
+
+* D-16 CONTROL_PARAM uses latest-value shaping per address
+:PROPERTIES:
+:DATE: 2026-11-12
+:END:
+A parameter write sets an exact value, so only the last one matters; coalescing per address is safe. No keepalive repeats for params.
+
+* D-17 Packets with the TS flag are rejected
+:PROPERTIES:
+:DATE: 2026-11-12
+:END:
+The spec defines the =TS= flag but not the timestamp format or position, so such payloads can't be parsed reliably. Reply =STATE_ERROR(VALIDATION_FAILED)=; raise upstream.
+
+* D-18 RDM mechanics stay in the RDM module; the console only sees results
+:PROPERTIES:
+:DATE: 2026-11-12
+:END:
+Retries, ACK_TIMER polling, ACK_OVERFLOW reassembly, timeouts and discovery are handled inside the RDM module. The console gets one final =STATE_ANSWER= per query, which fits WSC's single-answer model (no continuation flag in =STATE_ANSWER=) and keeps RDM timing out of the WSC session. Discovery answers from a cached device table and refreshes in the background. Replaces the TransactionTracker in the feedback path.
+
+* D-19 RDMnet (E1.33) is part of RDM support
+:PROPERTIES:
+:DATE: 2026-11-12
+:END:
+Whenever the server supports RDM, it supports it over Art-Net, USB/serial DMX and RDMnet. The server acts as an RDMnet Controller using ETCLabs' open-source C library (Apache-2.0, E1.33-2019, cross-platform). RDMnet devices push changes as unsolicited responses, which become feedback without polling. RDMnet runs over TCP, which spec 05 doesn't list for RDM; added to our =EXT= proposal. Supersedes D-12.
+
+* D-20 Generic downstream discovery with per-adapter device tables
+:PROPERTIES:
+:DATE: 2026-11-12
+:END:
+Most show protocols have their own discovery (Art-Net =ArtPoll=, sACN universe discovery, RDM / RDMnet, OSC via DNS-SD and OSCQuery, MIDI Identity Request / MIDI-CI), but WSC has none. Each adapter keeps a device table using its protocol's own mechanism; consoles query it with one generic =STATE_QUERY(DISCOVER)= (=EXT=, code 0x80, TD =protocol= picks the table) and receive changes as feedback. Replaces the RDM-only =RDM_DISCOVER= of D-14. The same tables are exposed via the config API.
+
+* D-21 Shaping by delivery model, not by DMX assumptions
+:PROPERTIES:
+:DATE: 2026-11-12
+:END:
+Keepalive repeats and the 44 Hz ceiling come from DMX and don't apply to most WSC targets. Each adapter declares a delivery model: cyclic (DMX family, cyclic fieldbus data: latest value + keepalive), event (OSC, MIDI, MQTT, ...: latest value per key or FIFO, no repeats) or transactional (RDM, Modbus, HTTP, VISCA, ...: one request in flight per target, retries, timeouts, one final answer). The RDM module's mechanics become the transactional policy, extracted when the second transactional adapter arrives.
+
+* D-22 Arbitration per output stream: merge for lighting, ownership elsewhere
+:PROPERTIES:
+:DATE: 2026-11-12
+:END:
+WSC has no multi-console rules. An arbiter per stream sits between router and shaper. Lighting streams: priority (TD =PRIORITY=, default 100), then HTP per channel, as sACN does; LTP configurable. Partial =STREAM_CHANNELS= go into a per-source 512-byte universe buffer. Machine protocols and =MOTION= / =ENV= targets: exclusive. Other streams: last writer wins. Cues are never arbitrated. sACN output: the server merges and sends one source per output; one CID per session is an option. Defaults to be confirmed by the user.
+
+* D-23 Source-loss actions and safety rule
+:PROPERTIES:
+:DATE: 2026-11-12
+:END:
+Holding or repeating the last value is right for lights but dangerous for motion, fog or other machines. A lost source leaves the merge immediately; when no source remains, the stream applies its configured action: hold (lighting default), release (stop sending; sACN termination) or safe value. Exclusive-by-default streams have no default action and are refused with =STATE_ERROR(CONFIG_ERROR)= until one is configured.
+
+* D-24 Gateway-side target map for protocol-specific identifiers
+:PROPERTIES:
+:DATE: 2026-11-12
+:END:
+Spec 03/04 put OSC paths, cue numbers and registers in the Transport Descriptor, but the TD has no field for them. Each event/transactional adapter resolves (TD target, WSC address) to a protocol item through a configured =TargetMap=; OSC and MQTT fall back to dot notation. The forward path stays WSC; no JSON is tunnelled. Propose upstream a =TARGET= TD param that overrides the map when present.

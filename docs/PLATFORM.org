@@ -1,0 +1,57 @@
+#+TITLE: Design — Platform, Service, Discovery, API, Build
+#+STARTUP: overview
+
+* Targets
+Linux, Windows, macOS. C++20, CMake + vcpkg. CI on all three from day one.
+
+* Exceptions policy
+Project targets build with =-fno-exceptions= (MSVC: =/EHs-c- _HAS_EXCEPTIONS=0=).
+| Dependency     | How used without exceptions                                        |
+|----------------+--------------------------------------------------------------------|
+| Abseil         | Native (Status/StatusOr, containers, log, flags, time)             |
+| Asio           | =ASIO_NO_EXCEPTIONS=, own =asio::detail::throw_exception= (log+abort), =error_code= overloads only |
+| libdatachannel | C API (=rtc.h=) wrapped by our classes                             |
+| RtMidi         | C API (=rtmidi_c.h=)                                               |
+| nlohmann/json  | =JSON_NOEXCEPTION=, =parse(s, nullptr, false)= + =is_discarded()=, =contains()=/=value()= only |
+| cpp-httplib    | =CPPHTTPLIB_NO_EXCEPTIONS=                                         |
+| RDMnet + EtcPal | C library, no exceptions; via CMake FetchContent if no vcpkg port |
+| GoogleTest     | tests only                                                         |
+Third-party libraries that use exceptions internally are built as separate targets with their own flags; we only call their non-throwing APIs.
+
+* Abseil usage
+- =absl::Status= / =absl::StatusOr<T>= for all fallible functions.
+- =absl::flat_hash_map=, =absl::InlinedVector= for hot-path containers.
+- =absl::AnyInvocable= for move-only callbacks.
+- =absl::Time= / =absl::Duration= for shaping.
+- =absl/log= for logging (replaces spdlog), =absl/flags= for the CLI.
+
+* Core (=src/core/=)
+- =App::Run(StopToken)=: OS-agnostic entry; builds io_context, pools, adapters, API, discovery.
+- =Identity=: UUIDv4 generated on first start, persisted in the state dir.
+- =ConfigStore=: owns configuration (JSON on disk), validates, publishes changes to components via posts on their strands.
+- =enums.hpp=: shared enums + =ToString= / =Parse= (StatusOr) for the API.
+
+* Platform layer (=src/platform/=)
+| Concern            | Linux                     | Windows                     | macOS                                  |
+|--------------------+---------------------------+-----------------------------+----------------------------------------|
+| State/config dir   | =$XDG_CONFIG_HOME/wsc-server= | =%APPDATA%\wsc-server= (service: =%ProgramData%=) | =~/Library/Application Support/wsc-server= |
+| Interface listing  | =getifaddrs=              | =GetAdaptersAddresses=      | =getifaddrs=                           |
+| Socket options     | =SO_REUSEADDR/PORT=, multicast by ifindex | =SO_REUSEADDR= semantics differ, =IP_ADD_MEMBERSHIP= by address | as Linux |
+| Service            | systemd unit (+ optional =sd_notify=) | SCM: =ServiceMain=, =SetServiceStatus= | launchd plist |
+- Service wrappers translate the OS stop request into the =StopToken=.
+- Foreground mode: =asio::signal_set= (SIGINT/SIGTERM) -> stop.
+- CLI: =--install-service=, =--uninstall-service=, =--foreground=.
+
+* Discovery (=src/discovery/=)
+- =MdnsAnnouncer= (announce) and =MdnsBrowser= (browse, used by downstream discovery for OSC and RDMnet Brokers) interfaces; backends: Avahi (Linux), =dns_sd= (macOS), =DnsServiceRegister= (Windows 10+). Fallback: mjansson/mdns built-in responder if the OS service is unavailable.
+- Service types (proposal): =_wsc._tcp= (WSC endpoint), =_wsc-api._tcp= (config API).
+- TXT: =id=<uuid>=, =ver=1.1.0=, =outputs=artnet,sacn,...=, =api=<port>=.
+
+* Config API (=src/api/=)
+- cpp-httplib, JSON bodies.
+- Endpoints (initial): =GET /info=, =GET/PUT /config=, =GET /outputs=, =GET/PUT /outputs/{id}=, =GET /outputs/{id}/streams=, =GET/PUT /inputs/sacn=, =GET /sessions=, =GET /devices=, =GET /devices/{protocol}=, =GET /metrics=.
+- Handlers validate into typed config structs, then hand to =ConfigStore=.
+- Auth: TBD (bind address restriction first).
+
+* CI
+GitHub Actions matrix: ubuntu-latest, windows-latest, macos-latest; build + unit tests; sanitizers (ASan/UBSan) on Linux; fuzz smoke run.
