@@ -81,4 +81,4 @@ tests/ (integration, interop, golden; unit tests sit next to the code)  fuzz/  t
 #+end_example
 
 * Dependencies (summary, see PLATFORM.org)
-Abseil, standalone Asio, libdatachannel (C API), RtMidi (C API), ETCLabs/RDMnet (C), nlohmann/json (=JSON_NOEXCEPTION=), cpp-httplib (=CPPHTTPLIB_NO_EXCEPTIONS=), GoogleTest, FuzzTest; Avahi / dns_sd / Windows DNS-SD, mjansson/mdns as fallback. Managed with CMake + vcpkg.
+Abseil, standalone Asio, cppitertools, libdatachannel (C API), RtMidi (C API), ETCLabs/RDMnet (C), nlohmann/json (=JSON_NOEXCEPTION=), cpp-httplib (=CPPHTTPLIB_NO_EXCEPTIONS=), GoogleTest, FuzzTest; Avahi / dns_sd / Windows DNS-SD, mjansson/mdns as fallback. Managed with CMake + vcpkg.

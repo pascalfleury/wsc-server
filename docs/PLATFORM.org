@@ -16,6 +16,7 @@ Project targets build with =-fno-exceptions= (MSVC: =/EHs-c- _HAS_EXCEPTIONS=0=)
 | Dependency     | How used without exceptions                                        |
 |----------------+--------------------------------------------------------------------|
 | Abseil         | Native (Status/StatusOr, containers, log, flags, time)             |
+| cppitertools   | Header-only; only headers without =throw= (=enumerate=, =zip=, ...) |
 | Asio           | =ASIO_NO_EXCEPTIONS=, own =asio::detail::throw_exception= (log+abort), =error_code= overloads only |
 | libdatachannel | C API (=rtc.h=) wrapped by our classes                             |
 | RtMidi         | C API (=rtmidi_c.h=)                                               |

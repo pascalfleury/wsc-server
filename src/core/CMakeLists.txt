@@ -3,7 +3,8 @@ add_library(wsc_core clock.h identity.cc identity.h uuid.cc uuid.h)
 wsc_target_defaults(wsc_core)
 target_link_libraries(wsc_core PUBLIC
   absl::random_bit_gen_ref absl::random_random absl::status absl::statusor
-  absl::strings absl::time)
+  absl::strings absl::time
+  PRIVATE absl::algorithm_container cppitertools::cppitertools)
 
 # The application object: the only target that may depend on every module.
 add_library(wsc_app app.cc app.h)

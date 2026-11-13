@@ -35,7 +35,8 @@ Applies to all project code (=libwsc/=, =src/=, =tests/=, =fuzz/=, =tools/=). Th
 |------------+-----|
 | pointer + length, =const std::vector<T>&= parameters | =std::span<const T>= |
 | =const std::string&= parameters | =std::string_view= |
-| hand-written loops over containers | range-based =for=, =std::ranges= algorithms and views (=std::views::filter=, =transform=, =enumerate=, ...) |
+| hand-written loops over containers | range-based =for=, =std::ranges= algorithms and views (=std::views::filter=, =transform=, ...) |
+| index counters next to a range-based =for=, loops over several ranges at once | cppitertools: =iter::enumerate=, =iter::zip=, ... (works on all three toolchains today, unlike =std::views::enumerate= / =zip=) |
 | =enable_if=, unconstrained templates | concepts and =requires= |
 | =int= / =bool= / macro "kinds" | =enum class= with an explicit underlying type; =std::to_underlying=; =using enum= inside =switch= |
 | hand-written =operator===, =operator<= | defaulted =operator===, =operator<=>= |

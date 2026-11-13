@@ -14,6 +14,7 @@ include(cmake/ProjectOptions.cmake)
 
 find_package(absl CONFIG REQUIRED)
 find_package(asio CONFIG REQUIRED)
+find_package(cppitertools CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 
 enable_testing()
