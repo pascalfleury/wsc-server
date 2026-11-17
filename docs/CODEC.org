@@ -1,5 +1,5 @@
 #+TITLE: Design — Codec (libwsc) and Sessions
-#+STARTUP: overview
+#+STARTUP: overview shrink
 
 * libwsc
 ** Scope
@@ -70,11 +70,12 @@ absl::StatusOr<size_t>  Encode(const MessageSpec& spec, std::span<uint8_t> out);
 
 ** Query type extensions: discovery and RDM (=EXT=, F-42, F-53)
 WSC 1.1.0 defines only =STATE_QUERY= type =KEEPALIVE (0x00)=, with no way to discover downstream devices or carry RDM. Our extension, to be proposed upstream:
-| query_type | Name           | =target_id= (UTF-8)                    | Extra payload after =target_id= |
-|------------+----------------+----------------------------------------+---------------------------------|
-| 0x80       | =DISCOVER=     | empty                                  | none                            |
-| 0x81       | =RDM_GET=      | =<uid>/<pid>[/<sub_device>]=, hex, e.g. =6574:00000001/0060= | none |
-| 0x82       | =RDM_SET=      | same                                   | raw parameter data              |
+| query_type | Name     | =target_id= (UTF-8)                                        | Extra payload after =target_id= |
+|------------+----------+----------------------------------------------------------+-------------------------------|
+|            |          | <60>                                                     |                               |
+|       0x80 | =DISCOVER= | empty                                                    | none                          |
+|       0x81 | =RDM_GET=  | =<uid>/<pid>[/<sub_device>]=, hex, e.g. =6574:00000001/0060= | none                          |
+|       0x82 | =RDM_SET=  | same                                                     | raw parameter data            |
 - =DISCOVER= is generic: the TD's =protocol= picks which device table (ARTNET, SACN, RDM, OSC, MIDI, ...), the TD iface/address optionally narrows it (one Art-Net subnet, one RDMnet Broker, one MIDI port). See ADAPTERS.org, Downstream discovery.
 - Codes start at 0x80 to stay clear of future upstream query types, which will presumably grow from 0x01.
 - Sent with =GW = 1=, =TR = 1=, TD =protocol = RDM= and iface UDP (Art-Net), USB or SERIAL, or TCP for RDMnet (=EXT=, outside spec 05's matrix). For RDMnet the TD address is the Broker (IPV4 / HOSTNAME), or NONE for the Broker found by DNS-SD in the default scope.
@@ -99,11 +100,12 @@ A =Session= is one connected WSC peer over one transport. It:
 
 ** Transports
 Both share the =/ws= endpoint: a WebSocket that sends JSON text is a signalling channel, one that sends binary frames is a plain WebSocket WSC session.
-| Transport  | Library                 | Phase | Notes                                   |
-|------------+-------------------------+-------+-----------------------------------------|
-| WebSocket  | libdatachannel C API    | 3     | binary frames, one WSC packet per message; non-standard alternative (spec 06) |
-| WebRTC DC  | libdatachannel C API    | 3     | reference transport; JSON signalling on =/ws= (=offer= -> =answer=, =ice= both ways), host ICE candidates only, label prefix =WSC!DC!= |
-| TCP/serial | Asio                    | opt.  | only if needed                          |
+| Transport  | Library              | Phase | Notes                                                                                                                        |
+|------------+----------------------+-------+------------------------------------------------------------------------------------------------------------------------------|
+|            |                      |       | <70>                                                                                                                         |
+| WebSocket  | libdatachannel C API |     3 | binary frames, one WSC packet per message; non-standard alternative (spec 06)                                                |
+| WebRTC DC  | libdatachannel C API |     3 | reference transport; JSON signalling on =/ws= (=offer= -> =answer=, =ice= both ways), host ICE candidates only, label prefix =WSC!DC!= |
+| TCP/serial | Asio                 |  opt. | only if needed                                                                                                               |
 
 libdatachannel's C++ API throws; we wrap =rtc.h= in our own exception-free classes.
 

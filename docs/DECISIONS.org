@@ -39,7 +39,7 @@ MIDI in, OSC in and RDM responses are feedback to consoles, not inputs to the fo
 :END:
 Supersedes a single bidirectional =ProtocolAdapter=. Each class has one purpose; devices used in both directions share a handle.
 
-* D-07 Pooled frames shared via allocate_shared
+* D-07 Pooled frames shared via allocate_shared (superseded by D-26)
 :PROPERTIES:
 :DATE: 2026-11-11
 :END:
@@ -153,3 +153,28 @@ Spec 03/04 put OSC paths, cue numbers and registers in the Transport Descriptor,
 :DATE: 2026-11-12
 :END:
 Google C++ style enforced by =clang-format= and =clang-tidy=; files are =.h= / =.cc= (earlier docs said =.hpp=). The build standard is C++23, but a feature is used only once GCC, MSVC and Apple Clang all support it; =absl::StatusOr= stays the error type instead of =std::expected= (D-02). No modules. Coroutines are allowed for long-lived activities (sessions, connections, discovery, transactions) but never created per packet or per shaper tick, since each coroutine frame is a heap allocation (N-01). Unit tests sit next to the code, use fakes and an injected clock; line coverage of at least 90 % for =libwsc/= and 80 % for =src/= (OS backends excluded) is enforced in CI (thresholds confirmed by the user). Updates the "C++20" of D-01.
+
+* D-26 Frame pool grows on demand, best fit, idle slots evicted
+:PROPERTIES:
+:DATE: 2026-11-17
+:END:
+Slots are allocated at the size of the first request that needs them and returned to the pool on release. Acquire takes the smallest free slot that fits, unless it wastes more than =max_slot_waste= (default 1 KiB), in which case a slot of the exact size is allocated. Slots unused for =slot_idle_timeout= (default 10 s) are freed. A burst of large frames does not pin memory once traffic turns small, and sizes that recur keep their slots, so steady traffic allocates nothing (N-01). Total pool memory is capped by =max_pool_bytes= because growth is driven by network input; the exhaustion policy in DATAPATH.org applies at the cap. Best fit needs an ordered free list behind a short mutex. Slots are variable-sized, so the control block is placed in the slot by a deleter plus slot-placing allocator.
+
+* D-27 Full DMX universes by default, partial DMX from channel 1 as an option
+:PROPERTIES:
+:DATE: 2026-11-17
+:END:
+DMX-family outputs send all 512 channels by default, as most consoles and receivers do. sACN, Art-Net and DMX512 can also send fewer than 512 slots, but always from slot 1; none can start at an offset. With the =partial_dmx= option (per output, overridable per stream), a =STREAM_CHANNELS= slice is merged into the per-source universe buffer (D-22) and the output frame covers channels 1 to the highest channel written by any contributing source. A slice for 50-124 sends 1-124. Shorter frames cost less bandwidth and wire time. Adapters apply protocol limits (Art-Net even length, DMX512 minimum break-to-break time).
+
+* D-28 sACN CIDs derived from the server ID
+:PROPERTIES:
+:DATE: 2026-11-17
+:END:
+E1.31 receivers identify, merge and time out sources by CID, and expect a device's CID to stay the same across restarts. Each CID is a name-based UUIDv5 with the server ID (F-01) as namespace and =sacn-output/<output id>= or =sacn-session/<stable client identity>= as name. Nothing extra is persisted; CIDs follow the server ID, and wiping the state directory gives the server new CIDs along with its new ID. Renaming an output changes its CID, which receivers see as one source lost and a new one appearing.
+
+* D-29 Configurable server display name, announced over mDNS
+:PROPERTIES:
+:DATE: 2026-11-17
+:STATUS: confirmed
+:END:
+Each server has a display name (F-03), defaulting to the host name, set through the config API. It is the DNS-SD instance name and the =name= TXT key; the ID stays the stable key because mDNS may rename the instance on a conflict. A name change re-registers the service right away. Choices confirmed by the user on 2026-11-17.

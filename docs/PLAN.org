@@ -22,7 +22,7 @@ All items below are written but not yet built or run (no vcpkg on the developmen
 - [ ] =App::Run(StopToken)= + foreground mode with signal handling
 
 * TODO Phase 2 — Memory & codec (F-10, F-11, N-01, N-02)
-- [ ] =Frame=, =FramePool=, =PoolAllocator= + =allocate_shared=; tests incl. allocation-counting test
+- [ ] =Frame=, =FramePool= (D-26: best fit, waste guard, idle eviction, memory cap) with in-slot control block; tests incl. allocation-counting test in steady traffic
 - [ ] libwsc decode/encode for all message types, golden round-trip tests
 - [ ] FuzzTest target on Decode
 
@@ -32,7 +32,7 @@ All items below are written but not yet built or run (no vcpkg on the developmen
 - [ ] Router (stateless)
 - [ ] RateShaper: latest-value slots + FIFO, adapter-level timer; =DeliveryModel= on adapters (D-21)
 - [ ] Universe buffers for partial =STREAM_CHANNELS= (F-27)
-- [ ] sACN output adapter
+- [ ] sACN output adapter, with CID derived from the server ID (=Uuid= name-based v5, D-28)
 - [ ] Tool: =wsc-send= CLI to drive tests
 - Milestone: upstream JS client (WebRTC) and =wsc-send= (WebSocket) -> server -> sACN visible in a sACN viewer
 

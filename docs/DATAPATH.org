@@ -1,26 +1,33 @@
 #+TITLE: Design — Data Path (Memory, Routing, Shaping, Feedback)
-#+STARTUP: overview
+#+STARTUP: overview shrink
 
 * Frame memory (=src/memory/=)
 ** Frame
 Immutable after being filled (decode or encode). Shared read-only as =std::shared_ptr<const Frame>=.
 
-** FramePool
-- Pre-allocated at startup, two size classes:
-  | Class | Size             | Typical use                         |
-  |-------+------------------+-------------------------------------|
-  | small | ~1 KiB           | one DMX universe + headers          |
-  | large | 65 535 + 19 B    | max WSC payload, tunnels            |
-- Capacity per class is configurable (sized from expected universes/streams).
-- Lock-free free list per class (threads from the io_context pool acquire).
+** FramePool (D-26)
+The pool starts empty and grows to fit the traffic it actually sees. Each slot is allocated at the size of the request that created it.
+
+- *Acquire(n bytes):*
+  1. Best fit: take the smallest free slot with capacity >= n.
+  2. Waste guard: if that slot's capacity exceeds n by more than =max_slot_waste= (default 1 KiB), do not use it; allocate a new slot of size n instead. A small request never pins a big slot.
+  3. No fitting free slot: allocate a new slot of size n.
+- *Release:* when the last owner drops the Frame, its slot goes back on the free list, stamped with the release time.
+- *Idle eviction:* a periodic sweep (every second, on the injected =Clock=) frees slots that have stayed unused for longer than =slot_idle_timeout= (default 10 s).
+- *Effect:* a burst of large frames at startup leaves large slots behind; if only small frames follow, those large slots age out after 10 s. A size that recurs within the timeout always keeps a slot, so regular traffic (large or small) reaches a steady state with no allocations.
+- *Free list:* ordered by capacity (e.g. a sorted container or size-bucketed lists) for best fit, guarded by a mutex held only for the lookup; the allocation itself happens outside the lock.
+- *Memory cap:* total slot bytes (in use + free) are capped by =max_pool_bytes=. Growth is driven by network input, so without a cap a client could make the server allocate without limit. At the cap, Acquire first evicts free slots (largest first) to make room; if that is not enough, the request fails (see Exhaustion policy).
 
 ** shared_ptr without heap allocation
-=std::make_shared= / =shared_ptr(p, deleter)= allocate a control block on the heap. Instead use =std::allocate_shared<Frame>(PoolAllocator{pool})= so the control block and the Frame share one pool slot; the slot returns to the pool when the last owner releases it. Slot size accounts for the control block.
+=std::make_shared= / =shared_ptr(p, deleter)= allocate a control block on the heap. Slots are variable-sized, so a slot is laid out as =[control block | Frame header | n bytes]=; the =shared_ptr= is built with a deleter that returns the slot to the pool and an allocator that places the control block in the slot's reserved header. The slot returns to the pool when the last owner releases it, with no separate heap block.
 
-** Exhaustion policy (no allocation on the hot path)
+** Exhaustion policy (memory cap reached)
 - State streams: drop the incoming frame, count it; the next update supersedes.
 - Events: reply =STATE_ERROR= (resource exhausted) to the originating session.
 - Metric + rate-limited log warning in both cases.
+
+** Metrics
+Slot allocations, slot evictions (idle and cap), bytes in use, bytes free, waste-guard allocations. A steadily rising allocation count in steady traffic means the waste guard or the idle timeout is set badly.
 
 * Forward router (=src/routing/=)
 - Input: =wsc::Message= (decoded, with Transport Descriptor).
@@ -45,6 +52,7 @@ struct RateLimits {
 #+end_src
 | Delivery model | Protocols | Message class | Policy |
 |----------------+-----------+---------------+--------|
+|                | <40>      | <40>          | <40>   |
 | Cyclic | DMX512, Art-Net, sACN, KiNET; cyclic fieldbus data (EtherCAT, PROFINET) | =STREAM_CHANNELS= | kLatestValue with keepalive |
 | Event | OSC, MIDI, MSC, MTC, MQTT, WebSocket, tally, GPI/GPO | =STREAM_CHANNELS=, =STREAM_TIMECODE=, =CONTROL_PARAM= | kLatestValue per key, no keepalive |
 | Event | same | =CONTROL_CUE=, =TUNNEL_RAW=, MIDI notes | kFifo |
@@ -76,7 +84,11 @@ Bounded ring of =shared_ptr<const Frame>=, drained at max rate. Never coalesced 
 WSC says nothing about several consoles driving the same target. Each output stream has an arbiter, on the adapter strand, between the router and the shaper (D-22, D-23). A *source* is a session or the =SacnToWsc= virtual session; for sACN input, each upstream sACN source is already resolved by =SacnToWsc=.
 
 ** Universe buffers (cyclic DMX-family streams)
-- =STREAM_CHANNELS= may carry a slice (=start_channel=, =count=). Each source has a 512-byte buffer per stream; a slice is written at =start_channel=, so the adapter always sends complete universes.
+- =STREAM_CHANNELS= may carry a slice (=start_channel=, =count=). Each source has a 512-byte buffer per stream; a slice is written at =start_channel=.
+- DMX-family outputs send full universes by default: all 512 channels, unwritten ones as 0. This is what most receivers expect.
+- Option =partial_dmx= (per output, overridable per stream like the rates in F-24): a frame starts at channel 1 and ends at the highest channel written so far (sACN, Art-Net and DMX512 support short frames but not a start offset). A slice for channels 50-124 sends channels 1-124; channels 1-49 carry their buffer values (0 if never written).
+- With =partial_dmx=, each source keeps an extent: the highest channel it has written. The stream's frame length is the largest extent among the sources that currently contribute, so it shrinks when a source is released or lost.
+- Protocol limits for partial frames are applied by the adapter: Art-Net =ArtDmx= length must be even (2-512), so an odd length is padded with one 0 slot; on a DMX512 wire, the driver keeps the minimum break-to-break time for short frames.
 - The double-buffered slot holds two 512-byte buffers (merged result, last sent) instead of frame pointers; a keepalive resends the last-sent buffer.
 - Buffers come from a pre-allocated pool sized by =max_sources_per_stream= (config); a source beyond the limit gets =STATE_ERROR(CONFIG_ERROR)=.
 
@@ -87,18 +99,21 @@ enum class LossAction : uint8_t { kHold, kRelease, kSafeValue };
 #+end_src
 | Mode | Behaviour | Default for |
 |------+-----------+-------------|
+|      | <40>      | <40>        |
 | kPriorityHtp | highest TD =PRIORITY= (default 100) wins; equal priority -> highest value per slot | cyclic lighting streams |
 | kPriorityLtp | highest priority wins; equal priority -> latest update per slot | (config) |
 | kExclusive | first source owns the stream until it stops or is lost; others get =STATE_ERROR(CONFIG_ERROR)= | machine protocols (Modbus, CANopen, EtherCAT, PROFINET), =MOTION= and =ENV= addresses |
 | kLastWriter | latest update wins, no per-slot merge | event and transactional streams |
 - Cues (=CONTROL_CUE=) are never arbitrated: all go out in arrival order. Timecode: kExclusive.
 - sACN output: by default the server merges and sends as one source (one CID per output). Option: one sACN source (own CID) per session, so downstream sACN receivers merge instead.
+- sACN CIDs are derived, never stored (D-28): =CID = UUIDv5(namespace = server ID, name)= with name =sacn-output/<output id>= per output, or =sacn-session/<stable client identity>= per session. The same server and output always get the same CID across restarts, and two servers never share one. The per-session form needs a client identity that survives reconnects (open point below).
 
 ** Source loss
 - A source is lost when its session closes or times out (5 s, spec 06) or =SacnToWsc= reports sACN source loss (2.5 s).
 - A lost source is removed from the merge at once (otherwise HTP would keep its levels up). When the last source of a stream is gone, the stream applies its =LossAction=:
   | Action | Effect |
   |--------+--------|
+  |        | <40>   |
   | kHold | keep sending the last value (keepalive continues); lighting default |
   | kRelease | stop sending; sACN sends stream termination |
   | kSafeValue | send the configured safe value or command once (e.g. stop axis, fog off), then hold it |
@@ -118,6 +133,6 @@ Not here: the RDM module owns its transaction state (see ADAPTERS.org, D-18). Th
 
 * Open points
 - [X] Confirm the arbitration defaults (D-22): priority + HTP for lighting, server-side merge with one sACN CID per output.
-- [ ] Choose the default pool sizes and expose them in config.
+- [ ] Confirm the frame pool defaults (=max_slot_waste= 1 KiB, =slot_idle_timeout= 10 s), choose =max_pool_bytes=, and expose all three in config.
 - [ ] Feedback JSON schema details.
-- [ ] How sessions are selected in =FeedbackRoutes= (session id is ephemeral; by peer address? by client-provided name?).
+- [ ] How sessions are selected in =FeedbackRoutes= (session id is ephemeral; by peer address? by client-provided name?). The same stable client identity names per-session sACN CIDs (D-28).

@@ -1,5 +1,5 @@
 #+TITLE: WSC-server — Coding Style and Standards
-#+STARTUP: overview
+#+STARTUP: overview shrink
 
 Applies to all project code (=libwsc/=, =src/=, =tests/=, =fuzz/=, =tools/=). Third-party code keeps its own style. Decision: D-25.
 
@@ -8,22 +8,23 @@ Applies to all project code (=libwsc/=, =src/=, =tests/=, =fuzz/=, =tools/=). Th
 - Where this file and the Google guide disagree, this file wins; the differences are listed under "Deviations".
 
 ** The parts of Google style that matter most here
-| Topic | Rule |
-|-------+------|
-| Files | =snake_case.h= / =snake_case.cc=, tests =snake_case_test.cc=; one class per header (small helper types may share it) |
-| Header guards | =#define= guards from the path: =WSC_SERVER_SRC_SHAPING_RATE_SHAPER_H_= |
-| Includes | path from the repository root (=#include "src/shaping/rate_shaper.h"=); order: own header, C, C++, other libraries, project; include what you use |
-| Types | =PascalCase= (=RateShaper=, =StreamKey=) |
-| Functions | =PascalCase= (=Emit()=); accessors may be =snake_case= (=protocol()=) |
-| Variables | =snake_case=; class members =trailing_underscore_=; struct members without |
-| Constants, enumerators | =kPascalCase= (=kLatestValue=) |
-| Namespaces | =wsc= for the codec library, =wsc_server= for the server; no =using namespace=; file-local helpers in an unnamed namespace |
-| Line length | 80 columns (code only; org files are not wrapped) |
-| Ownership | =std::unique_ptr= for single owners, =std::shared_ptr<const Frame>= only for frames shared between outputs; raw pointers and references never own |
-| Classes | constructors do no fallible work: use a =static absl::StatusOr<std::unique_ptr<T>> Create(...)= factory; single-argument constructors are =explicit=; copy/move declared or deleted explicitly |
-| Inheritance | only public, only to implement an interface (pure virtual class); otherwise composition; =override= always |
-| Casts | C++ casts only; no =reinterpret_cast= on packet bytes (see "Wire data") |
-| Comments | =//= style; every class and non-obvious function says what it is for, not how it is written |
+| Topic                  | Rule                                                                                                                                                                                       |
+|------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|                        | <100>                                                                                                                                                                                      |
+| Files                  | =snake_case.h= / =snake_case.cc=, tests =snake_case_test.cc=; one class per header (small helper types may share it)                                                                             |
+| Header guards          | =#define= guards from the path: =WSC_SERVER_SRC_SHAPING_RATE_SHAPER_H_=                                                                                                                        |
+| Includes               | path from the repository root (=#include "src/shaping/rate_shaper.h"=); order: own header, C, C++, other libraries, project; include what you use                                            |
+| Types                  | =PascalCase= (=RateShaper=, =StreamKey=)                                                                                                                                                         |
+| Functions              | =PascalCase= (=Emit()=); accessors may be =snake_case= (=protocol()=)                                                                                                                              |
+| Variables              | =snake_case=; class members =trailing_underscore_=; struct members without                                                                                                                     |
+| Constants, enumerators | =kPascalCase= (=kLatestValue=)                                                                                                                                                                 |
+| Namespaces             | =wsc= for the codec library, =wsc_server= for the server; no =using namespace=; file-local helpers in an unnamed namespace                                                                       |
+| Line length            | 80 columns (code only; org files are not wrapped)                                                                                                                                          |
+| Ownership              | =std::unique_ptr= for single owners, =std::shared_ptr<const Frame>= only for frames shared between outputs; raw pointers and references never own                                              |
+| Classes                | constructors do no fallible work: use a =static absl::StatusOr<std::unique_ptr<T>> Create(...)= factory; single-argument constructors are =explicit=; copy/move declared or deleted explicitly |
+| Inheritance            | only public, only to implement an interface (pure virtual class); otherwise composition; =override= always                                                                                   |
+| Casts                  | C++ casts only; no =reinterpret_cast= on packet bytes (see "Wire data")                                                                                                                      |
+| Comments               | =//= style; every class and non-obvious function says what it is for, not how it is written                                                                                                  |
 
 * Language standard
 - The build sets C++23 (=CMAKE_CXX_STANDARD 23=, extensions off). Minimum toolchains: to be pinned in phase 1 from what the three CI images provide.
@@ -31,23 +32,24 @@ Applies to all project code (=libwsc/=, =src/=, =tests/=, =fuzz/=, =tools/=). Th
 - No exceptions, no RTTI (=-fno-exceptions -fno-rtti= and MSVC equivalents); errors are =absl::Status= / =absl::StatusOr<T>=, always checked.
 
 ** Preferred constructs
-| Instead of | Use |
-|------------+-----|
-| pointer + length, =const std::vector<T>&= parameters | =std::span<const T>= |
-| =const std::string&= parameters | =std::string_view= |
-| hand-written loops over containers | range-based =for=, =std::ranges= algorithms and views (=std::views::filter=, =transform=, ...) |
+| Instead of                                                                    | Use                                                                                                                             |
+|-------------------------------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------|
+| <40>                                                                          | <40>                                                                                                                            |
+| pointer + length, =const std::vector<T>&= parameters                          | =std::span<const T>=                                                                                                            |
+| =const std::string&= parameters                                               | =std::string_view=                                                                                                              |
+| hand-written loops over containers                                            | range-based =for=, =std::ranges= algorithms and views (=std::views::filter=, =transform=, ...)                                  |
 | index counters next to a range-based =for=, loops over several ranges at once | cppitertools: =iter::enumerate=, =iter::zip=, ... (works on all three toolchains today, unlike =std::views::enumerate= / =zip=) |
-| =enable_if=, unconstrained templates | concepts and =requires= |
-| =int= / =bool= / macro "kinds" | =enum class= with an explicit underlying type; =std::to_underlying=; =using enum= inside =switch= |
-| hand-written =operator===, =operator<= | defaulted =operator===, =operator<=>= |
-| macros, magic numbers | =constexpr= / =consteval= / =constinit= |
-| field-by-field struct setup | designated initialisers |
-| shifts and masks for byte order, =memcpy= type punning | =<bit>=: =std::byteswap=, =std::endian=, =std::bit_cast=, =std::has_single_bit= |
-| out-parameters, sentinel values | =absl::StatusOr<T>=, =std::optional<T>= (with =and_then= / =transform= / =or_else=) |
-| =printf=, stream formatting | =std::format= (logging through =absl/log=) |
-| own stop flags | =std::stop_token= / =std::jthread= |
-| =std::function= for callbacks | =absl::AnyInvocable= (move-only, no allocation for small callables) |
-| =std::unordered_map=, =std::map= on the packet path | =absl::flat_hash_map=, =absl::InlinedVector= |
+| =enable_if=, unconstrained templates                                          | concepts and =requires=                                                                                                         |
+| =int= / =bool= / macro "kinds"                                                | =enum class= with an explicit underlying type; =std::to_underlying=; =using enum= inside =switch=                               |
+| hand-written =operator===, =operator<=                                        | defaulted =operator===, =operator<=>=                                                                                           |
+| macros, magic numbers                                                         | =constexpr= / =consteval= / =constinit=                                                                                         |
+| field-by-field struct setup                                                   | designated initialisers                                                                                                         |
+| shifts and masks for byte order, =memcpy= type punning                        | =<bit>=: =std::byteswap=, =std::endian=, =std::bit_cast=, =std::has_single_bit=                                                 |
+| out-parameters, sentinel values                                               | =absl::StatusOr<T>=, =std::optional<T>= (with =and_then= / =transform= / =or_else=)                                             |
+| =printf=, stream formatting                                                   | =std::format= (logging through =absl/log=)                                                                                      |
+| own stop flags                                                                | =std::stop_token= / =std::jthread=                                                                                              |
+| =std::function= for callbacks                                                 | =absl::AnyInvocable= (move-only, no allocation for small callables)                                                             |
+| =std::unordered_map=, =std::map= on the packet path                           | =absl::flat_hash_map=, =absl::InlinedVector=                                                                                    |
 - =[[nodiscard]]= on functions whose result must not be dropped (=absl::Status= already is). =noexcept= on move operations.
 - =auto= when the type is obvious from the right-hand side or is noise (iterators, lambdas); spell the type otherwise.
 
@@ -99,11 +101,12 @@ Applies to all project code (=libwsc/=, =src/=, =tests/=, =fuzz/=, =tools/=). Th
 - Fakes over mocks: hand-written fakes for =OutputAdapter=, =FrameSink=, =Session= and the clock live in a =testing/= library. Mocks only where the interaction itself is what is being tested.
 - No sleeping and no real sockets in unit tests: time is the fake clock, I/O is a fake. Real sockets (loopback) only in =tests/=.
 - Coverage, measured on Linux with =llvm-cov= in CI, build fails below the threshold:
-  | Scope | Minimum line coverage |
-  |-------+-----------------------|
-  | =libwsc/= | 90 % |
-  | =src/= except OS backends in =platform/= and =discovery/= | 80 % |
-  | OS backends | no threshold; exercised by the three-OS CI and integration tests |
+  | Scope                                                     | Minimum line coverage                                            |
+  |-----------------------------------------------------------+------------------------------------------------------------------|
+  | <40>                                                      | <40>                                                             |
+  | =libwsc/=                                                 | 90 %                                                             |
+  | =src/= except OS backends in =platform/= and =discovery/= | 80 %                                                             |
+  | OS backends                                               | no threshold; exercised by the three-OS CI and integration tests |
 - Beyond line coverage:
   - a fuzz target for every parser of untrusted bytes (WSC, sACN, Art-Net, OSC, RDM, config JSON);
   - golden-packet round trips for the codec;
@@ -112,13 +115,14 @@ Applies to all project code (=libwsc/=, =src/=, =tests/=, =fuzz/=, =tools/=). Th
 - Test names say what is expected: =TEST(RateShaperTest, RepeatsLastFrameAfterKeepaliveInterval)=.
 
 * Tooling
-| Tool | Purpose | When |
-|------+---------+------|
-| =clang-format= | formatting | editor on save; CI check |
-| =clang-tidy= | Google naming, bug-prone patterns, modernisation hints | CI on changed files |
-| compiler warnings | =-Wall -Wextra -Wpedantic -Werror= (MSVC =/W4 /WX=) on project targets | every build |
-| sanitizers | ASan, UBSan, TSan | CI, Linux |
-| =llvm-cov= | coverage thresholds | CI, Linux |
+| Tool              | Purpose                                                            | When                     |
+|-------------------+--------------------------------------------------------------------+--------------------------|
+|                   | <40>                                                               |                          |
+| =clang-format=      | formatting                                                         | editor on save; CI check |
+| =clang-tidy=        | Google naming, bug-prone patterns, modernisation hints             | CI on changed files      |
+| compiler warnings | =-Wall -Wextra -Wpedantic -Werror= (MSVC =/W4 /WX=) on project targets | every build              |
+| sanitizers        | ASan, UBSan, TSan                                                  | CI, Linux                |
+| =llvm-cov=          | coverage thresholds                                                | CI, Linux                |
 
 * Open points
 - [ ] Pin minimum compiler versions and list which C++23 library features all three support (phase 1).

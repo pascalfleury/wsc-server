@@ -1,5 +1,5 @@
 #+TITLE: WSC-server — Architecture Overview
-#+STARTUP: overview
+#+STARTUP: overview shrink
 
 * Purpose
 WSC-server is a gateway that receives Web Show Control (WSC) traffic from consoles and forwards it to show-control protocols (Art-Net, sACN, MIDI, OSC, RDM, ...), and routes feedback from those protocols back to the consoles. Protocol reference: https://github.com/ASLS-org/WSC (v1.1.0).
@@ -11,7 +11,7 @@ See [[file:FUNCTIONAL.org][FUNCTIONAL.org]] for what it does, this file for how 
 - *Stateless forward routing.* The router only reads the Transport Descriptor carried by each packet (as the WSC spec requires). No route tables.
 - *State lives at the edges.* Arbitration and rate shaping state live with the output streams; feedback routing lives in the feedback path; RDM transaction state lives in the RDM module.
 - *Not only DMX.* Shaping, arbitration and loss behaviour follow each protocol's delivery model (cyclic, event, transactional; D-21..D-23), not DMX defaults.
-- *No hot-path allocation.* Frames come from pre-allocated pools and are shared (zero-copy) via =std::shared_ptr<const Frame>=.
+- *No steady-state allocation.* Frames come from a pool that grows to fit the traffic and frees idle slots (D-26); once traffic is steady, no allocation happens. Frames are shared (zero-copy) via =std::shared_ptr<const Frame>=.
 - *No exceptions.* Errors are =absl::Status= / =absl::StatusOr<T>=.
 - *Single-purpose classes*, enums for every "kind of" value, portable code with OS specifics isolated in =src/platform/= and =src/discovery/=.
 
@@ -32,20 +32,21 @@ See [[file:FUNCTIONAL.org][FUNCTIONAL.org]] for what it does, this file for how 
 #+end_example
 
 * Components
-| Component        | Directory              | Responsibility                                                  | Design doc     |
-|------------------+------------------------+-----------------------------------------------------------------+----------------|
-| Codec            | =libwsc/=              | Encode/decode WSC packets; zero-copy views; no I/O              | [[file:CODEC.org][CODEC.org]]      |
-| Frame memory     | =src/memory/=          | Frame, FramePool, PoolAllocator                                 | [[file:DATAPATH.org][DATAPATH.org]]   |
-| Router           | =src/routing/=         | Forward routing from Transport Descriptor to output stream      | [[file:DATAPATH.org][DATAPATH.org]]   |
-| RateShaper       | =src/shaping/=         | Arbitration and source loss per stream; min/max rate, double-buffered slots, FIFO, transactions by delivery model | [[file:DATAPATH.org][DATAPATH.org]]   |
-| Feedback         | =src/feedback/=        | Feedback routes, return routing to sessions                     | [[file:DATAPATH.org][DATAPATH.org]]   |
-| Sessions         | =src/sessions/=        | WSC transports (WebSocket, WebRTC), session lifecycle           | [[file:CODEC.org][CODEC.org]]      |
-| Output adapters  | =src/outputs/=         | Forward sinks: Art-Net, sACN, MIDI, OSC; RDM module (both ways) | [[file:ADAPTERS.org][ADAPTERS.org]]   |
-| Input translators| =src/translators/=     | Other protocol -> WSC frames (sACN in, MIDI/OSC feedback)       | [[file:ADAPTERS.org][ADAPTERS.org]]   |
-| Core             | =src/core/=            | App lifecycle (=Run(StopToken)=), identity, config store, enums | [[file:PLATFORM.org][PLATFORM.org]]   |
-| Config API       | =src/api/=             | REST/JSON configuration and status                              | [[file:PLATFORM.org][PLATFORM.org]]   |
-| Discovery        | =src/discovery/=       | mDNS announcement (per-OS backends + portable fallback)         | [[file:PLATFORM.org][PLATFORM.org]]   |
-| Platform         | =src/platform/=        | Paths, interfaces, socket options, service wrappers             | [[file:PLATFORM.org][PLATFORM.org]]   |
+| Component         | Directory        | Responsibility                                                                                                    | Design doc   |
+|-------------------+------------------+-------------------------------------------------------------------------------------------------------------------+--------------|
+|                   |                  | <40>                                                                                                              |              |
+| Codec             | =libwsc/=          | Encode/decode WSC packets; zero-copy views; no I/O                                                                | [[file:CODEC.org][CODEC.org]]    |
+| Frame memory      | =src/memory/=      | Frame, FramePool, PoolAllocator                                                                                   | [[file:DATAPATH.org][DATAPATH.org]] |
+| Router            | =src/routing/=     | Forward routing from Transport Descriptor to output stream                                                        | [[file:DATAPATH.org][DATAPATH.org]] |
+| RateShaper        | =src/shaping/=     | Arbitration and source loss per stream; min/max rate, double-buffered slots, FIFO, transactions by delivery model | [[file:DATAPATH.org][DATAPATH.org]] |
+| Feedback          | =src/feedback/=    | Feedback routes, return routing to sessions                                                                       | [[file:DATAPATH.org][DATAPATH.org]] |
+| Sessions          | =src/sessions/=    | WSC transports (WebSocket, WebRTC), session lifecycle                                                             | [[file:CODEC.org][CODEC.org]]    |
+| Output adapters   | =src/outputs/=     | Forward sinks: Art-Net, sACN, MIDI, OSC; RDM module (both ways)                                                   | [[file:ADAPTERS.org][ADAPTERS.org]] |
+| Input translators | =src/translators/= | Other protocol -> WSC frames (sACN in, MIDI/OSC feedback)                                                         | [[file:ADAPTERS.org][ADAPTERS.org]] |
+| Core              | =src/core/=        | App lifecycle (=Run(StopToken)=), identity, config store, enums                                                     | [[file:PLATFORM.org][PLATFORM.org]] |
+| Config API        | =src/api/=         | REST/JSON configuration and status                                                                                | [[file:PLATFORM.org][PLATFORM.org]] |
+| Discovery         | =src/discovery/=   | mDNS announcement (per-OS backends + portable fallback)                                                           | [[file:PLATFORM.org][PLATFORM.org]] |
+| Platform          | =src/platform/=    | Paths, interfaces, socket options, service wrappers                                                               | [[file:PLATFORM.org][PLATFORM.org]] |
 
 Decisions and their rationale are logged in [[file:DECISIONS.org][DECISIONS.org]]. Coding style, module dependency rules and testing standards are in [[file:CODING.org][CODING.org]].
 

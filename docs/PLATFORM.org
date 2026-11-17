@@ -1,5 +1,5 @@
 #+TITLE: Design — Platform, Service, Discovery, API, Build
-#+STARTUP: overview
+#+STARTUP: overview shrink
 
 * Targets
 Linux, Windows, macOS. C++23 build (features used once all three toolchains support them, see [[file:CODING.org][CODING.org]]), CMake + vcpkg. CI on all three from day one.
@@ -13,17 +13,18 @@ Linux, Windows, macOS. C++23 build (features used once all three toolchains supp
 
 * Exceptions policy
 Project targets build with =-fno-exceptions= (MSVC: =/EHs-c- _HAS_EXCEPTIONS=0=).
-| Dependency     | How used without exceptions                                        |
-|----------------+--------------------------------------------------------------------|
-| Abseil         | Native (Status/StatusOr, containers, log, flags, time)             |
-| cppitertools   | Header-only; only headers without =throw= (=enumerate=, =zip=, ...) |
-| Asio           | =ASIO_NO_EXCEPTIONS=, own =asio::detail::throw_exception= (log+abort), =error_code= overloads only |
-| libdatachannel | C API (=rtc.h=) wrapped by our classes                             |
-| RtMidi         | C API (=rtmidi_c.h=)                                               |
-| nlohmann/json  | =JSON_NOEXCEPTION=, =parse(s, nullptr, false)= + =is_discarded()=, =contains()=/=value()= only |
-| cpp-httplib    | =CPPHTTPLIB_NO_EXCEPTIONS=                                         |
-| RDMnet + EtcPal | C library, no exceptions; via CMake FetchContent if no vcpkg port |
-| GoogleTest     | tests only                                                         |
+| Dependency      | How used without exceptions                                                                  |
+|-----------------+----------------------------------------------------------------------------------------------|
+|                 | <100>                                                                                        |
+| Abseil          | Native (Status/StatusOr, containers, log, flags, time)                                       |
+| cppitertools    | Header-only; only headers without =throw= (=enumerate=, =zip=, ...)                                |
+| Asio            | =ASIO_NO_EXCEPTIONS=, own =asio::detail::throw_exception= (log+abort), =error_code= overloads only |
+| libdatachannel  | C API (=rtc.h=) wrapped by our classes                                                         |
+| RtMidi          | C API (=rtmidi_c.h=)                                                                           |
+| nlohmann/json   | =JSON_NOEXCEPTION=, =parse(s, nullptr, false)= + =is_discarded()=, =contains()=/=value()= only       |
+| cpp-httplib     | =CPPHTTPLIB_NO_EXCEPTIONS=                                                                     |
+| RDMnet + EtcPal | C library, no exceptions; via CMake FetchContent if no vcpkg port                            |
+| GoogleTest      | tests only                                                                                   |
 Third-party libraries that use exceptions internally are built as separate targets with their own flags; we only call their non-throwing APIs.
 
 * Abseil usage
@@ -40,12 +41,13 @@ Third-party libraries that use exceptions internally are built as separate targe
 - =enums.h=: shared enums + =ToString= / =Parse= (StatusOr) for the API.
 
 * Platform layer (=src/platform/=)
-| Concern            | Linux                     | Windows                     | macOS                                  |
-|--------------------+---------------------------+-----------------------------+----------------------------------------|
-| State/config dir   | =$XDG_CONFIG_HOME/wsc-server= | =%APPDATA%\wsc-server= (service: =%ProgramData%=) | =~/Library/Application Support/wsc-server= |
-| Interface listing  | =getifaddrs=              | =GetAdaptersAddresses=      | =getifaddrs=                           |
-| Socket options     | =SO_REUSEADDR/PORT=, multicast by ifindex | =SO_REUSEADDR= semantics differ, =IP_ADD_MEMBERSHIP= by address | as Linux |
-| Service            | systemd unit (+ optional =sd_notify=) | SCM: =ServiceMain=, =SetServiceStatus= | launchd plist |
+| Concern           | Linux                                     | Windows                                                         | macOS                                      |
+|-------------------+-------------------------------------------+-----------------------------------------------------------------+--------------------------------------------|
+|                   |                                           | <40>                                                            |                                            |
+| State/config dir  | =$XDG_CONFIG_HOME/wsc-server=             | =%APPDATA%\wsc-server= (service: =%ProgramData%=)               | =~/Library/Application Support/wsc-server= |
+| Interface listing | =getifaddrs=                              | =GetAdaptersAddresses=                                          | =getifaddrs=                               |
+| Socket options    | =SO_REUSEADDR/PORT=, multicast by ifindex | =SO_REUSEADDR= semantics differ, =IP_ADD_MEMBERSHIP= by address | as Linux                                   |
+| Service           | systemd unit (+ optional =sd_notify=)     | SCM: =ServiceMain=, =SetServiceStatus=                          | launchd plist                              |
 - Service wrappers translate the OS stop request into the =StopToken=.
 - Foreground mode: =asio::signal_set= (SIGINT/SIGTERM) -> stop.
 - CLI: =--install-service=, =--uninstall-service=, =--foreground=.
@@ -53,7 +55,9 @@ Third-party libraries that use exceptions internally are built as separate targe
 * Discovery (=src/discovery/=)
 - =MdnsAnnouncer= (announce) and =MdnsBrowser= (browse, used by downstream discovery for OSC and RDMnet Brokers) interfaces; backends: Avahi (Linux), =dns_sd= (macOS), =DnsServiceRegister= (Windows 10+). Fallback: mjansson/mdns built-in responder if the OS service is unavailable.
 - Service types (proposal): =_wsc._tcp= (WSC endpoint), =_wsc-api._tcp= (config API).
-- TXT: =id=<uuid>=, =ver=1.1.0=, =outputs=artnet,sacn,...=, =api=<port>=.
+- Instance name: the server's display name (F-03), at most 63 bytes of UTF-8 (DNS label limit), truncated at a character boundary. On a name conflict the mDNS responder renames the instance (e.g. "Stage Left (2)"), so the =name= TXT key holds the configured name and =id= stays the stable key.
+- TXT: =id=<uuid>=, =name=<display name>=, =ver=1.1.0=, =outputs=artnet,sacn,...=, =api=<port>=. Each key=value string is at most 255 bytes.
+- Changing the display name re-registers the service under the new instance name.
 
 * Config API (=src/api/=)
 - cpp-httplib, JSON bodies.
