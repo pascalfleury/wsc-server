@@ -62,10 +62,11 @@ absl::StatusOr<size_t>  Encode(const MessageSpec& spec, std::span<uint8_t> out);
 - Receiver obligations (spec 02, 07): < 19 bytes or bad magic -> drop silently (=Decode= returns a distinct "drop" status); major version != 1 -> =PROTOCOL_VERSION=; flag invariants (=GW= needs =TR=, =TR= needs =transport_len > 0=, =TR = 0= needs =transport_len = 0=) -> =MISSING_TRANSPORT= / =MISSING_TRANSPORT_FLAG=.
 - Compatibility checks (=(protocol, iface)=, =(type, protocol)=, =TUNNEL_RAW= only with =RAW=) live in libwsc as a =Validate(const Message&)= function (spec 07 asks bindings for one), used by the router and by our encoders.
 - Addresses (spec 03): self-terminating token sequence ending in =0x00=, length-prefixed with u16 in payloads; =0x80= index sentinel (one or two), =0xFE= custom string; unknown tokens are kept as-is and never a parse error.
+- Index ambiguity (spec 03): two small indices in a row (=[0x80][a][0x80][b]=) are the same bytes as one u16 index =(a << 8) | b=, so =lighting.cue.10.5= reads as =lighting.cue.2565=. The decoder follows spec 03's parsing rule (u16). The encoder refuses an index directly followed by another index (=InvalidArgument=), so we never send an ambiguous address; point cues go as a =CUSTOM= segment (=lighting.cue.CUSTOM("10.5")=) until upstream defines an encoding. Upstream issue drafted.
 - Spec 02's annotated example still shows version =1.0.0=; only the major byte matters for compatibility.
 
 ** Testing
-- Golden packets produced with the upstream JS SDK (=@asls/wsc-sdk=) checked in under =tests/golden/=, decode + re-encode round-trip.
+- Golden packets produced with the upstream JS SDK (=@asls/wsc-sdk@2.2.0=) by =tools/golden/gen_golden.mjs=, checked in under =tests/golden/= with =MANIFEST.json= (inputs, hex, SDK decode). Decode + re-encode round-trip for every case except those whose note starts with =NOT SPEC-CONFORMANT= (SDK bugs: empty =CUSTOM= segment from =WscAddress.parse("...custom...")=, transport iface =0= from =WscTransport.raw()=): those are decode-robustness inputs only. =I64= values have no golden packet (not implemented in the SDK).
 - FuzzTest target on =Decode=.
 
 ** Query type extensions: discovery and RDM (=EXT=, F-42, F-53)
@@ -88,6 +89,8 @@ WSC 1.1.0 defines only =STATE_QUERY= type =KEEPALIVE (0x00)=, with no way to dis
 - [ ] Include =(RDM, TCP)= for RDMnet in the upstream proposal.
 - [ ] Confirm =RDM_SET= extra payload after =target_id= is acceptable to the upstream maintainers (a standard decoder would see trailing bytes).
 - [ ] Raise upstream: =TS= flag has no defined timestamp format.
+- [ ] Raise upstream: index ambiguity in spec 03 (point cues); spec 03's =CUSTOM= example has a wrong length byte (=0x10= for the 15-byte =house_lights_on=).
+- [ ] Report SDK bugs upstream: empty =CUSTOM= segment, iface =0= in =raw()=, no =STREAM_TIMECODE= decode, no =I64=.
 - [ ] Raise upstream: spec 03/04 put OSC paths / registers in the TD, but the TD has no field for them; propose a =TARGET= param (D-24).
 
 * Sessions

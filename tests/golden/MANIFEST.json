@@ -1,0 +1,784 @@
+{
+  "sdk": "@asls/wsc-sdk@2.2.0",
+  "cases": [
+    {
+      "name": "stream_channels_sacn_full",
+      "note": "full universe, sACN multicast, PRIORITY param",
+      "type": "0x1000",
+      "input": {
+        "universe": 1,
+        "startChannel": 1,
+        "values": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"
+      },
+      "id": 1,
+      "hex": "575343210100001000d000000000010206000d000100010200000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff030101efff000115c001010164",
+      "sdk_decode": {
+        "universe": 1,
+        "startChannel": 1,
+        "count": 512,
+        "values": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"
+      }
+    },
+    {
+      "name": "stream_channels_artnet_slice",
+      "note": "slice 50..124 (partial update)",
+      "type": "0x1000",
+      "input": {
+        "universe": 0,
+        "startChannel": 50,
+        "values": "32333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c"
+      },
+      "id": 2,
+      "hex": "575343210100001000c000000000020051000a00000032004b32333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c020101c0a80164193600",
+      "sdk_decode": {
+        "universe": 0,
+        "startChannel": 50,
+        "count": 75,
+        "values": "32333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c"
+      }
+    },
+    {
+      "name": "stream_channels_dmx_usb",
+      "note": "USB address (FTDI 0403:6001)",
+      "type": "0x1000",
+      "input": {
+        "universe": 0,
+        "startChannel": 1,
+        "values": "000102030405060708090a0b0c0d0e0f1011121314151617"
+      },
+      "id": 3,
+      "hex": "575343210100001000c00000000003001e0008000000010018000102030405060708090a0b0c0d0e0f10111213141516170104040403600100",
+      "sdk_decode": {
+        "universe": 0,
+        "startChannel": 1,
+        "count": 24,
+        "values": "000102030405060708090a0b0c0d0e0f1011121314151617"
+      }
+    },
+    {
+      "name": "stream_channels_dmx_serial",
+      "note": "serial address + BAUD_RATE param",
+      "type": "0x1000",
+      "input": {
+        "universe": 0,
+        "startChannel": 1,
+        "values": "0001020304050607"
+      },
+      "id": 4,
+      "hex": "575343210100001000c00000000004000e000b0000000100080001020304050607010303020103040003d090",
+      "sdk_decode": {
+        "universe": 0,
+        "startChannel": 1,
+        "count": 8,
+        "values": "0001020304050607"
+      }
+    },
+    {
+      "name": "stream_timecode",
+      "note": "01:02:03:04 at 25 fps, no TD",
+      "type": "0x1003",
+      "input": {
+        "hours": 1,
+        "minutes": 2,
+        "seconds": 3,
+        "frames": 4,
+        "rate": 25
+      },
+      "id": 5,
+      "hex": "575343210100001003000000000005000500000102030419",
+      "sdk_decode": null
+    },
+    {
+      "name": "control_cue_ack",
+      "note": "lighting.cue.42 START, ACK requested",
+      "type": "0x2000",
+      "input": {
+        "address": "lighting.cue.42",
+        "action": 1
+      },
+      "id": 6,
+      "hex": "5753432101000020002000000000060008000000050119802a0001",
+      "sdk_decode": {
+        "address": {
+          "segments": [
+            {
+              "token": 1
+            },
+            {
+              "token": 25
+            },
+            {
+              "token": 128,
+              "index": 42
+            }
+          ]
+        },
+        "action": 1
+      }
+    },
+    {
+      "name": "control_cue_osc",
+      "note": "cue via OSC gateway",
+      "type": "0x2000",
+      "input": {
+        "address": "lighting.cue.42",
+        "action": 1
+      },
+      "id": 7,
+      "hex": "575343210100002000c000000000070008000a00050119802a00011501010a0000051f4000",
+      "sdk_decode": {
+        "address": {
+          "segments": [
+            {
+              "token": 1
+            },
+            {
+              "token": 25
+            },
+            {
+              "token": 128,
+              "index": 42
+            }
+          ]
+        },
+        "action": 1
+      }
+    },
+    {
+      "name": "control_cue_u16_index",
+      "note": "index > 255 (two INDEX sentinels)",
+      "type": "0x2000",
+      "input": {
+        "address": "lighting.cue.300",
+        "action": 2
+      },
+      "id": 8,
+      "hex": "575343210100002000000000000008000a0000000701198001802c0002",
+      "sdk_decode": {
+        "address": {
+          "segments": [
+            {
+              "token": 1
+            },
+            {
+              "token": 25
+            },
+            {
+              "token": 128,
+              "index": 300
+            }
+          ]
+        },
+        "action": 2
+      }
+    },
+    {
+      "name": "control_cue_point_cue",
+      "note": "NOT SPEC-CORRECT INTENT: cue 10.5 encodes exactly like index 2565 (spec 03 ambiguity); SDK decodes 2565",
+      "type": "0x2000",
+      "input": {
+        "address": "lighting.cue.10.5",
+        "action": 1
+      },
+      "id": 9,
+      "hex": "575343210100002000000000000009000a000000070119800a80050001",
+      "sdk_decode": {
+        "address": {
+          "segments": [
+            {
+              "token": 1
+            },
+            {
+              "token": 25
+            },
+            {
+              "token": 128,
+              "index": 2565
+            }
+          ]
+        },
+        "action": 1
+      }
+    },
+    {
+      "name": "control_cue_custom",
+      "note": "NOT SPEC-CONFORMANT: SDK adds an empty CUSTOM segment before house_lights_on; decoder robustness only",
+      "type": "0x2000",
+      "input": {
+        "address": "lighting.custom.house_lights_on",
+        "action": 1
+      },
+      "id": 10,
+      "hex": "57534321010000200000000000000a00180000001501fe00fe0f686f7573655f6c69676874735f6f6e0001",
+      "sdk_decode": {
+        "address": {
+          "segments": [
+            {
+              "token": 1
+            },
+            {
+              "token": 254,
+              "custom": ""
+            },
+            {
+              "token": 254,
+              "custom": "house_lights_on"
+            }
+          ]
+        },
+        "action": 1
+      }
+    },
+    {
+      "name": "control_param_u8",
+      "note": "value type u8",
+      "type": "0x2001",
+      "input": {
+        "address": "lighting.layer.2.intensity",
+        "valueType": 1,
+        "value": 200
+      },
+      "id": 20,
+      "hex": "575343210100002001000000000014000a0000000601108002400001c8",
+      "sdk_decode": {
+        "address": {
+          "segments": [
+            {
+              "token": 1
+            },
+            {
+              "token": 16
+            },
+            {
+              "token": 128,
+              "index": 2
+            },
+            {
+              "token": 64
+            }
+          ]
+        },
+        "valueType": 1,
+        "value": 200
+      }
+    },
+    {
+      "name": "control_param_u16",
+      "note": "value type u16",
+      "type": "0x2001",
+      "input": {
+        "address": "lighting.layer.2.intensity",
+        "valueType": 2,
+        "value": 48879
+      },
+      "id": 21,
+      "hex": "575343210100002001000000000015000b0000000601108002400002beef",
+      "sdk_decode": {
+        "address": {
+          "segments": [
+            {
+              "token": 1
+            },
+            {
+              "token": 16
+            },
+            {
+              "token": 128,
+              "index": 2
+            },
+            {
+              "token": 64
+            }
+          ]
+        },
+        "valueType": 2,
+        "value": 48879
+      }
+    },
+    {
+      "name": "control_param_u32",
+      "note": "value type u32",
+      "type": "0x2001",
+      "input": {
+        "address": "lighting.layer.2.intensity",
+        "valueType": 3,
+        "value": 3735928559
+      },
+      "id": 22,
+      "hex": "575343210100002001000000000016000d0000000601108002400003deadbeef",
+      "sdk_decode": {
+        "address": {
+          "segments": [
+            {
+              "token": 1
+            },
+            {
+              "token": 16
+            },
+            {
+              "token": 128,
+              "index": 2
+            },
+            {
+              "token": 64
+            }
+          ]
+        },
+        "valueType": 3,
+        "value": 3735928559
+      }
+    },
+    {
+      "name": "control_param_u64",
+      "note": "value type u64",
+      "type": "0x2001",
+      "input": {
+        "address": "lighting.layer.2.intensity",
+        "valueType": 4,
+        "value": "72623859790382856"
+      },
+      "id": 23,
+      "hex": "575343210100002001000000000017001100000006011080024000040102030405060708",
+      "sdk_decode": {
+        "address": {
+          "segments": [
+            {
+              "token": 1
+            },
+            {
+              "token": 16
+            },
+            {
+              "token": 128,
+              "index": 2
+            },
+            {
+              "token": 64
+            }
+          ]
+        },
+        "valueType": 4,
+        "value": "72623859790382856"
+      }
+    },
+    {
+      "name": "control_param_i8",
+      "note": "value type i8",
+      "type": "0x2001",
+      "input": {
+        "address": "lighting.layer.2.intensity",
+        "valueType": 5,
+        "value": -5
+      },
+      "id": 24,
+      "hex": "575343210100002001000000000018000a0000000601108002400005fb",
+      "sdk_decode": {
+        "address": {
+          "segments": [
+            {
+              "token": 1
+            },
+            {
+              "token": 16
+            },
+            {
+              "token": 128,
+              "index": 2
+            },
+            {
+              "token": 64
+            }
+          ]
+        },
+        "valueType": 5,
+        "value": -5
+      }
+    },
+    {
+      "name": "control_param_i16",
+      "note": "value type i16",
+      "type": "0x2001",
+      "input": {
+        "address": "lighting.layer.2.intensity",
+        "valueType": 6,
+        "value": -1234
+      },
+      "id": 25,
+      "hex": "575343210100002001000000000019000b0000000601108002400006fb2e",
+      "sdk_decode": {
+        "address": {
+          "segments": [
+            {
+              "token": 1
+            },
+            {
+              "token": 16
+            },
+            {
+              "token": 128,
+              "index": 2
+            },
+            {
+              "token": 64
+            }
+          ]
+        },
+        "valueType": 6,
+        "value": -1234
+      }
+    },
+    {
+      "name": "control_param_i32",
+      "note": "value type i32",
+      "type": "0x2001",
+      "input": {
+        "address": "lighting.layer.2.intensity",
+        "valueType": 7,
+        "value": -123456
+      },
+      "id": 26,
+      "hex": "57534321010000200100000000001a000d0000000601108002400007fffe1dc0",
+      "sdk_decode": {
+        "address": {
+          "segments": [
+            {
+              "token": 1
+            },
+            {
+              "token": 16
+            },
+            {
+              "token": 128,
+              "index": 2
+            },
+            {
+              "token": 64
+            }
+          ]
+        },
+        "valueType": 7,
+        "value": -123456
+      }
+    },
+    {
+      "name": "control_param_i64",
+      "note": "value type i64",
+      "type": "0x2001",
+      "input": {
+        "address": "lighting.layer.2.intensity",
+        "valueType": 8,
+        "value": "-5"
+      },
+      "id": 27,
+      "sdk_error": "Unsupported value type: 0x8"
+    },
+    {
+      "name": "control_param_f32",
+      "note": "value type f32",
+      "type": "0x2001",
+      "input": {
+        "address": "lighting.layer.2.intensity",
+        "valueType": 9,
+        "value": 0.75
+      },
+      "id": 28,
+      "hex": "57534321010000200100000000001c000d00000006011080024000093f400000",
+      "sdk_decode": {
+        "address": {
+          "segments": [
+            {
+              "token": 1
+            },
+            {
+              "token": 16
+            },
+            {
+              "token": 128,
+              "index": 2
+            },
+            {
+              "token": 64
+            }
+          ]
+        },
+        "valueType": 9,
+        "value": 0.75
+      }
+    },
+    {
+      "name": "control_param_f64",
+      "note": "value type f64",
+      "type": "0x2001",
+      "input": {
+        "address": "lighting.layer.2.intensity",
+        "valueType": 10,
+        "value": -1.5
+      },
+      "id": 29,
+      "hex": "57534321010000200100000000001d0011000000060110800240000abff8000000000000",
+      "sdk_decode": {
+        "address": {
+          "segments": [
+            {
+              "token": 1
+            },
+            {
+              "token": 16
+            },
+            {
+              "token": 128,
+              "index": 2
+            },
+            {
+              "token": 64
+            }
+          ]
+        },
+        "valueType": 10,
+        "value": -1.5
+      }
+    },
+    {
+      "name": "control_param_string",
+      "note": "value type string",
+      "type": "0x2001",
+      "input": {
+        "address": "lighting.layer.2.intensity",
+        "valueType": 11,
+        "value": "grün"
+      },
+      "id": 30,
+      "hex": "57534321010000200100000000001e0010000000060110800240000b00056772c3bc6e",
+      "sdk_decode": {
+        "address": {
+          "segments": [
+            {
+              "token": 1
+            },
+            {
+              "token": 16
+            },
+            {
+              "token": 128,
+              "index": 2
+            },
+            {
+              "token": 64
+            }
+          ]
+        },
+        "valueType": 11,
+        "value": "grün"
+      }
+    },
+    {
+      "name": "control_param_bool",
+      "note": "value type bool",
+      "type": "0x2001",
+      "input": {
+        "address": "lighting.layer.2.intensity",
+        "valueType": 12,
+        "value": true
+      },
+      "id": 31,
+      "hex": "57534321010000200100000000001f000a000000060110800240000c01",
+      "sdk_decode": {
+        "address": {
+          "segments": [
+            {
+              "token": 1
+            },
+            {
+              "token": 16
+            },
+            {
+              "token": 128,
+              "index": 2
+            },
+            {
+              "token": 64
+            }
+          ]
+        },
+        "valueType": 12,
+        "value": true
+      }
+    },
+    {
+      "name": "control_param_modbus_tcp",
+      "note": "TCP address",
+      "type": "0x2001",
+      "input": {
+        "address": "motion.axis.1",
+        "valueType": 9,
+        "value": 12.5
+      },
+      "id": 40,
+      "hex": "575343210100002001e00000000028000c000a0005041d80010009414800003002010a00000901f600",
+      "sdk_decode": {
+        "address": {
+          "segments": [
+            {
+              "token": 4
+            },
+            {
+              "token": 29
+            },
+            {
+              "token": 128,
+              "index": 1
+            }
+          ]
+        },
+        "valueType": 9,
+        "value": 12.5
+      }
+    },
+    {
+      "name": "control_param_http_url",
+      "note": "URL address",
+      "type": "0x2001",
+      "input": {
+        "address": "video.layer.1.opacity",
+        "valueType": 9,
+        "value": 0.5
+      },
+      "id": 41,
+      "hex": "575343210100002001c00000000029000d00180006031080017000093f000000f0060613687474703a2f2f31302e302e302e372f61706900",
+      "sdk_decode": {
+        "address": {
+          "segments": [
+            {
+              "token": 3
+            },
+            {
+              "token": 16
+            },
+            {
+              "token": 128,
+              "index": 1
+            },
+            {
+              "token": 112
+            }
+          ]
+        },
+        "valueType": 9,
+        "value": 0.5
+      }
+    },
+    {
+      "name": "tunnel_raw_sdk_helper",
+      "note": "NOT SPEC-CONFORMANT: WscTransport.raw() writes iface 0, not in spec 05; decoder robustness only",
+      "type": "0xe000",
+      "input": {
+        "raw": "0102ff"
+      },
+      "id": 50,
+      "hex": "57534321010000e000c00000000032000300040102ffff000000",
+      "sdk_decode": {
+        "raw": "0102ff"
+      }
+    },
+    {
+      "name": "tunnel_raw_udp",
+      "note": "RAW over UDP",
+      "type": "0xe000",
+      "input": {
+        "raw": "0102ff"
+      },
+      "id": 51,
+      "hex": "57534321010000e000c000000000330003000a0102ffff01010a0000031f9000",
+      "sdk_decode": {
+        "raw": "0102ff"
+      }
+    },
+    {
+      "name": "state_query_keepalive",
+      "note": "KEEPALIVE, empty target_id",
+      "type": "0xf000",
+      "input": {
+        "queryType": 0
+      },
+      "id": 60,
+      "hex": "57534321010000f00000000000003c00030000000000",
+      "sdk_decode": {
+        "queryType": 0,
+        "targetId": ""
+      }
+    },
+    {
+      "name": "state_answer_json",
+      "note": "SUCCESS with JSON data",
+      "type": "0xf001",
+      "input": {
+        "queryId": 60,
+        "status": 0,
+        "data": {
+          "id": "35797cde-3def-48f8-bb5a-19713477591e"
+        }
+      },
+      "id": 61,
+      "hex": "57534321010000f00100000000003d003500000000003c0001002d7b226964223a2233353739376364652d336465662d343866382d626235612d313937313334373735393165227d",
+      "sdk_decode": {
+        "queryId": 60,
+        "status": 0,
+        "data": {
+          "id": "35797cde-3def-48f8-bb5a-19713477591e"
+        }
+      }
+    },
+    {
+      "name": "state_answer_raw",
+      "note": "raw data",
+      "type": "0xf001",
+      "input": {
+        "queryId": 7,
+        "status": 1,
+        "data": "cafe"
+      },
+      "id": 62,
+      "hex": "57534321010000f00100000000003e000a00000000000701000002cafe",
+      "sdk_decode": {
+        "queryId": 7,
+        "status": 1,
+        "data": "cafe"
+      }
+    },
+    {
+      "name": "state_error",
+      "note": "NO_ROUTE with context",
+      "type": "0xf004",
+      "input": {
+        "errorCode": 9,
+        "message": "no adapter",
+        "context": {
+          "protocol": 2
+        }
+      },
+      "id": 63,
+      "hex": "57534321010000f00400000000003f001e00000009000a6e6f2061646170746572000e7b2270726f746f636f6c223a327d",
+      "sdk_decode": {
+        "errorCode": 9,
+        "message": "no adapter",
+        "context": {
+          "protocol": 2
+        }
+      }
+    },
+    {
+      "name": "header_max_id",
+      "note": "id 0xFFFFFFFF",
+      "type": "0xf000",
+      "input": {
+        "queryType": 0
+      },
+      "id": 4294967295,
+      "hex": "57534321010000f0000000ffffffff00030000000000",
+      "sdk_decode": {
+        "queryType": 0,
+        "targetId": ""
+      }
+    }
+  ]
+}
