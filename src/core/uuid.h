@@ -17,6 +17,10 @@ class Uuid {
   // Returns a random (version 4) UUID drawn from `gen`.
   static Uuid GenerateV4(absl::BitGenRef gen);
 
+  // Returns the name-based (version 5, SHA-1) UUID of `name` in the namespace
+  // `ns` (RFC 9562, section 5.5). The same inputs always give the same UUID.
+  static Uuid FromName(const Uuid& ns, std::string_view name);
+
   // Parses the canonical 8-4-4-4-12 hexadecimal form, in either case.
   static absl::StatusOr<Uuid> Parse(std::string_view text);
 

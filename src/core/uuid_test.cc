@@ -51,5 +51,23 @@ TEST(UuidTest, GeneratedUuidSurvivesTextRoundTrip) {
   EXPECT_EQ(*parsed, id);
 }
 
+TEST(UuidTest, FromNameMatchesRfc9562Example) {
+  // RFC 9562 appendix A.4: DNS namespace, "www.example.com".
+  const Uuid dns = Uuid::Parse("6ba7b810-9dad-11d1-80b4-00c04fd430c8").value();
+  EXPECT_EQ(Uuid::FromName(dns, "www.example.com").ToString(),
+            "2ed6657d-e927-568b-95e1-2665a8aea6a2");
+}
+
+TEST(UuidTest, FromNameDependsOnNamespaceAndName) {
+  const Uuid a = Uuid::Parse("35797cde-3def-48f8-bb5a-19713477591e").value();
+  const Uuid b = Uuid::Parse("35797cde-3def-48f8-bb5a-19713477591f").value();
+  EXPECT_EQ(Uuid::FromName(a, "sacn-output/1"),
+            Uuid::FromName(a, "sacn-output/1"));
+  EXPECT_NE(Uuid::FromName(a, "sacn-output/1"),
+            Uuid::FromName(a, "sacn-output/2"));
+  EXPECT_NE(Uuid::FromName(a, "sacn-output/1"),
+            Uuid::FromName(b, "sacn-output/1"));
+}
+
 }  // namespace
 }  // namespace wsc_server

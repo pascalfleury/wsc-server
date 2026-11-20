@@ -67,7 +67,7 @@ Decisions and their rationale are logged in [[file:DECISIONS.org][DECISIONS.org]
 libwsc/                 codec (static lib, no I/O)
 src/
 ├── core/               app, identity, config_store, enums
-├── memory/             frame, frame_pool, pool_allocator
+├── memory/             frame, frame_pool
 ├── routing/            router (forward, stateless)
 ├── shaping/            arbiter, stream_slot, rate_shaper
 ├── feedback/           feedback_router, feedback_routes
@@ -82,4 +82,4 @@ tests/ (integration, interop, golden; unit tests sit next to the code)  fuzz/  t
 #+end_example
 
 * Dependencies (summary, see PLATFORM.org)
-Abseil, standalone Asio, cppitertools, libdatachannel (C API), RtMidi (C API), ETCLabs/RDMnet (C), nlohmann/json (=JSON_NOEXCEPTION=), cpp-httplib (=CPPHTTPLIB_NO_EXCEPTIONS=), GoogleTest, libFuzzer; Avahi / dns_sd / Windows DNS-SD, mjansson/mdns as fallback. Managed with CMake + vcpkg.
+Abseil, standalone Asio, cppitertools, OpenSSL (SHA-1 for name-based UUIDs; also needed by libdatachannel), libdatachannel (C API), RtMidi (C API), ETCLabs/RDMnet (C), nlohmann/json (=JSON_NOEXCEPTION=), cpp-httplib (=CPPHTTPLIB_NO_EXCEPTIONS=), GoogleTest, libFuzzer; Avahi / dns_sd / Windows DNS-SD, mjansson/mdns as fallback. Managed with CMake + vcpkg.

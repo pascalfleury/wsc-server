@@ -17,6 +17,7 @@ find_package(absl CONFIG REQUIRED)
 find_package(asio CONFIG REQUIRED)
 find_package(cppitertools CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
+find_package(OpenSSL REQUIRED)
 
 enable_testing()
 include(GoogleTest)

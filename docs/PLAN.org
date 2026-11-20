@@ -24,18 +24,17 @@ CI is green on Linux, Windows and macOS.
 
 * DONE Phase 2 — Memory & codec (F-10, F-11, N-01, N-02)
 CLOSED: [2026-11-20 Fri 23:16]
-All items pass on Linux (GCC, Clang ASan/UBSan, clang-tidy, coverage, 2 min fuzzing). Close the phase once CI is green on Windows and macOS.
 - [X] =Frame=, =FramePool= (D-26: reuse within the waste limit, idle eviction, memory cap); tests incl. allocation-counting test in steady traffic
 - [X] libwsc decode/encode for all message types, golden round-trip tests
 - [X] libFuzzer target on Decode (D-30)
 
-* TODO Phase 3 — First end-to-end path (F-13, F-14, F-20..F-22)
+* WIP Phase 3 — First end-to-end path (F-13, F-14, F-20..F-22)
 - [ ] WebSocket session and WebRTC DataChannel session with =/ws= signalling (libdatachannel C API), both from the start (D-15)
 - [ ] Keepalive handling, 5 s session timeout, =ACK= answers
 - [ ] Router (stateless)
 - [ ] RateShaper: latest-value slots + FIFO, adapter-level timer; =DeliveryModel= on adapters (D-21)
 - [ ] Universe buffers for partial =STREAM_CHANNELS= (F-27)
-- [ ] sACN output adapter, with CID derived from the server ID (=Uuid= name-based v5, D-28)
+- [ ] sACN output adapter, with CID derived from the server ID (=Uuid= name-based v5, D-28); E1.31 data packet encoder and =Uuid::FromName= done
 - [ ] Tool: =wsc-send= CLI to drive tests
 - Milestone: upstream JS client (WebRTC) and =wsc-send= (WebSocket) -> server -> sACN visible in a sACN viewer
 

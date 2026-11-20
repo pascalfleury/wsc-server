@@ -1,5 +1,11 @@
 {
   "name": "wsc-server",
   "version-string": "0.1.0",
-  "dependencies": ["abseil", "asio", "cppitertools", "gtest"]
+  "dependencies": [
+    "abseil",
+    "asio",
+    "cppitertools",
+    "gtest",
+    "openssl"
+  ]
 }

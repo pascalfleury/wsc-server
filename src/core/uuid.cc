@@ -4,12 +4,15 @@
 #include <array>
 #include <cstddef>
 #include <string_view>
+#include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/log/check.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "cppitertools/enumerate.hpp"
+#include "openssl/evp.h"
 
 namespace wsc_server {
 namespace {
@@ -77,6 +80,22 @@ Uuid Uuid::GenerateV4(absl::BitGenRef gen) {
   std::ranges::generate(bytes, [&gen] { return absl::Uniform<uint8_t>(gen); });
   bytes[6] &= 0x0F;
   bytes[6] |= 0x40;  // version 4
+  bytes[8] &= 0x3F;
+  bytes[8] |= 0x80;  // RFC variant
+  return Uuid(bytes);
+}
+
+Uuid Uuid::FromName(const Uuid& ns, std::string_view name) {
+  std::vector<uint8_t> input(ns.bytes_.begin(), ns.bytes_.end());
+  input.insert(input.end(), name.begin(), name.end());
+  std::array<uint8_t, EVP_MAX_MD_SIZE> digest{};
+  // SHA-1 cannot fail on in-memory input; RFC 9562 v5 requires SHA-1.
+  CHECK(EVP_Digest(input.data(), input.size(), digest.data(), nullptr,
+                   EVP_sha1(), nullptr) == 1);
+  std::array<uint8_t, 16> bytes{};
+  std::copy_n(digest.begin(), bytes.size(), bytes.begin());
+  bytes[6] &= 0x0F;
+  bytes[6] |= 0x50;  // version 5
   bytes[8] &= 0x3F;
   bytes[8] |= 0x80;  // RFC variant
   return Uuid(bytes);
