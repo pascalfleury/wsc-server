@@ -95,7 +95,7 @@ A bridge to help existing consoles and installations move to WSC: they can drive
 - F-83 :: Metrics: frames in/out, drops (coalesced, pool exhaustion), repeats, errors, per adapter and stream.
 
 * Non-functional
-- N-01 :: No heap allocation on the steady-state packet path (frame pool reuses slots; it allocates only while traffic sizes change, D-26).
+- N-01 :: No heap allocation on the steady-state packet path (frame pool reuses frames; it allocates only while traffic sizes change, D-26).
 - N-02 :: Zero-copy fan-out to multiple outputs (=shared_ptr<const Frame>=).
 - N-03 :: Sustain at least 44 Hz per DMX universe for many universes without added jitter beyond one shaper tick.
 - N-04 :: No C++ exceptions in project code.

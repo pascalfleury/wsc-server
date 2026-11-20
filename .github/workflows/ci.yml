@@ -37,14 +37,17 @@ jobs:
       - run: git ls-files '*.h' '*.cc' | xargs clang-format-18 --dry-run --Werror
 
   sanitizers:
-    name: ASan + UBSan + clang-tidy
+    name: ASan + UBSan + clang-tidy + fuzz
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/vcpkg
-      - run: cmake --preset asan -DWSC_CLANG_TIDY=ON
+      - run: cmake --preset asan -DWSC_CLANG_TIDY=ON -DWSC_FUZZ=ON
       - run: cmake --build --preset asan
       - run: ctest --preset asan
+      - run: |
+          mkdir -p build/fuzz-corpus
+          build/asan/fuzz/decode_fuzzer -max_total_time=60 build/fuzz-corpus tests/golden
 
   coverage:
     name: Coverage thresholds

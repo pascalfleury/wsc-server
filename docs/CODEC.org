@@ -5,69 +5,60 @@
 ** Scope
 Static library, no I/O, no threads. Encodes and decodes WSC 1.1.0 packets. Used by sessions (decode/encode), translators (encode) and tests/tools.
 
-** API sketch
+** API
+Files: =types.h= (code tables), =wire.h= (big-endian reader/writer), =address.h=, =transport.h=, =packet.h=, =validate.h=, =error.h=.
 #+begin_src c++
 namespace wsc {
-enum class MessageType : uint16_t {
-  kStreamChannels = 0x1000, kStreamTimecode = 0x1003,
-  kControlCue = 0x2000, kControlParam = 0x2001,
-  kTunnelRaw = 0xE000,
-  kStateQuery = 0xF000, kStateAnswer = 0xF001, kStateError = 0xF004,
-};
-
-// 19 bytes, big-endian (spec 02).
+// The header fields that are not derived: the type comes from the body,
+// payload_len / transport_len from the encoded regions.
 struct Header {
-  std::array<uint8_t, 3> version;  // [major, minor, patch]; we send [1, 1, 0]
-  MessageType type;
-  Flags flags;                     // TR 0x8000, GW 0x4000, ACK 0x2000, MC 0x1000, TS 0x0800; rest reserved
-  uint32_t id;                     // 1..0xFFFFFFFF, wraps to 1, never 0
-  uint16_t payload_len;
-  uint16_t transport_len;
-};  // preceded on the wire by magic "WSC!"
-
-// Transport Descriptor (spec 05).
-struct TransportDescriptor {
-  Protocol protocol;   // spec codes: DMX512 0x01, ARTNET 0x02, SACN 0x03, ..., RDM 0x05, OSC 0x15, RAW 0xFF
-  Iface iface;         // UDP 0x01, TCP 0x02, SERIAL 0x03, USB 0x04, WEBSOCKET 0x05, HTTP 0x06
-  AddrType addr_type;  // NONE, IPV4, IPV6, SERIAL, USB, HOSTNAME, URL
-  std::span<const uint8_t> addr_data;
-  absl::InlinedVector<Param, 4> params;  // PRIORITY, TTL, BAUD_RATE, SEQUENCE, IFACE_IDX
+  std::array<uint8_t, 3> version = {1, 1, 0};
+  uint16_t flags = 0;  // flags::kTransport (TR), kGateway, kAck, kMulticast, kTimestamp
+  uint32_t id = 0;     // 1..0xFFFFFFFF, never 0
 };
 
-// Views into a Frame; valid while the Frame is alive.
-struct StreamChannels { uint16_t universe; uint16_t start_channel; std::span<const uint8_t> values; };
-struct ControlParam   { Address addr; ValueType type; std::span<const uint8_t> value; };
-// ... one struct per message type ...
+struct TransportDescriptor {
+  Protocol protocol; Iface iface; AddrType addr_type;
+  std::span<const uint8_t> addr_data;           // layout per addr_type
+  absl::InlinedVector<Param, 4> params;         // {ParamKey key; span value}
+};
 
+// One struct per message type; spans and string_views view the input bytes.
+struct StreamChannels { uint16_t universe; uint16_t start_channel; std::span<const uint8_t> values; };
+struct ControlParam   { std::span<const uint8_t> address; ValueType type; std::span<const uint8_t> value; };
+// ... StreamTimecode, ControlCue, TunnelRaw, StateQuery, StateAnswer, StateError
 using Body = std::variant<StreamChannels, StreamTimecode, ControlCue, ControlParam,
                           TunnelRaw, StateQuery, StateAnswer, StateError>;
 
-struct Message {
-  std::shared_ptr<const Frame> frame;  // keeps the views alive
+struct Packet {
   Header header;
-  std::optional<TransportDescriptor> descriptor;  // present iff TR = 1
+  std::optional<TransportDescriptor> transport;  // present iff TR = 1
   Body body;
 };
 
-absl::StatusOr<Message> Decode(std::shared_ptr<const Frame> frame);
-absl::StatusOr<size_t>  Encode(const MessageSpec& spec, std::span<uint8_t> out);
+absl::StatusOr<Packet> Decode(std::span<const uint8_t> bytes);
+absl::StatusOr<size_t> Encode(const Packet& packet, std::span<uint8_t> out);
+absl::Status Validate(const Packet& packet);
 }  // namespace wsc
 #+end_src
+- libwsc does not know about Frames. A session decodes the bytes of a Frame and keeps the =shared_ptr<const Frame>= next to the =Packet= for as long as the views are used.
+- Addresses are kept in wire form (=std::span=); =ParseAddress= splits them into =Segment=s (named token, index, custom string) and =EncodeAddress= builds the wire form.
 
 ** Rules
 - Decode never copies payload bytes; bodies are =std::span= views.
-- Decode validates lengths before every read; malformed input -> =absl::Status= with a code mappable to a WSC =STATE_ERROR= code.
+- Decode validates lengths before every read; malformed input -> =absl::Status= carrying the WSC error code for the =STATE_ERROR= reply as a status payload (=wsc::Error=, =wsc::GetErrorCode=). The packet must fill the buffer exactly.
 - Encode writes into a caller-supplied buffer (a pooled Frame); never allocates.
 - Endianness via explicit load/store helpers (no =reinterpret_cast= of structs).
-- Receiver obligations (spec 02, 07): < 19 bytes or bad magic -> drop silently (=Decode= returns a distinct "drop" status); major version != 1 -> =PROTOCOL_VERSION=; flag invariants (=GW= needs =TR=, =TR= needs =transport_len > 0=, =TR = 0= needs =transport_len = 0=) -> =MISSING_TRANSPORT= / =MISSING_TRANSPORT_FLAG=.
-- Compatibility checks (=(protocol, iface)=, =(type, protocol)=, =TUNNEL_RAW= only with =RAW=) live in libwsc as a =Validate(const Message&)= function (spec 07 asks bindings for one), used by the router and by our encoders.
+- Receiver obligations (spec 02, 07): < 19 bytes or bad magic -> drop silently (=wsc::IsDrop(status)=); major version != 1 -> =PROTOCOL_VERSION=; flag invariants (=GW= needs =TR=, =TR= needs =transport_len > 0=, =TR = 0= needs =transport_len = 0=) -> =MISSING_TRANSPORT= / =MISSING_TRANSPORT_FLAG=.
+- Compatibility checks (=(protocol, iface)=, =(type, protocol)=, =TUNNEL_RAW= only with =RAW=) live in libwsc as a =Validate(const Packet&)= function (spec 07 asks bindings for one), used by the router and by our encoders.
 - Addresses (spec 03): self-terminating token sequence ending in =0x00=, length-prefixed with u16 in payloads; =0x80= index sentinel (one or two), =0xFE= custom string; unknown tokens are kept as-is and never a parse error.
 - Index ambiguity (spec 03): two small indices in a row (=[0x80][a][0x80][b]=) are the same bytes as one u16 index =(a << 8) | b=, so =lighting.cue.10.5= reads as =lighting.cue.2565=. The decoder follows spec 03's parsing rule (u16). The encoder refuses an index directly followed by another index (=InvalidArgument=), so we never send an ambiguous address; point cues go as a =CUSTOM= segment (=lighting.cue.CUSTOM("10.5")=) until upstream defines an encoding. Upstream issue drafted.
 - Spec 02's annotated example still shows version =1.0.0=; only the major byte matters for compatibility.
 
 ** Testing
 - Golden packets produced with the upstream JS SDK (=@asls/wsc-sdk@2.2.0=) by =tools/golden/gen_golden.mjs=, checked in under =tests/golden/= with =MANIFEST.json= (inputs, hex, SDK decode). Decode + re-encode round-trip for every case except those whose note starts with =NOT SPEC-CONFORMANT= (SDK bugs: empty =CUSTOM= segment from =WscAddress.parse("...custom...")=, transport iface =0= from =WscTransport.raw()=): those are decode-robustness inputs only. =I64= values have no golden packet (not implemented in the SDK).
-- FuzzTest target on =Decode=.
+- libFuzzer target =fuzz/decode_fuzzer.cc= (D-30): any packet that decodes must re-encode to the same bytes; seeded with =tests/golden/=. CI runs it for 60 s in the sanitizer job.
+- The spec 02 annotated example has a wrong =transport_len= (9 for a 10-byte descriptor); =packet_test= uses the corrected bytes.
 
 ** Query type extensions: discovery and RDM (=EXT=, F-42, F-53)
 WSC 1.1.0 defines only =STATE_QUERY= type =KEEPALIVE (0x00)=, with no way to discover downstream devices or carry RDM. Our extension, to be proposed upstream:
@@ -86,7 +77,7 @@ WSC 1.1.0 defines only =STATE_QUERY= type =KEEPALIVE (0x00)=, with no way to dis
 - Size: RDM parameter data is at most 231 bytes per message; reassembled overflow responses and device lists stay far below the 65 527-byte =data= limit. If a list is truncated anyway, status =PARTIAL=.
 
 ** Open points
-- [ ] Spec and SDK issues to raise upstream (index ambiguity, CUSTOM example length, =TS= format, RDM/discovery query types, =TARGET= param, version bytes, SDK bugs): see [[file:WSC_UPSTREAM.org][WSC_UPSTREAM.org]].
+- [ ] Spec and SDK issues to raise upstream (index ambiguity, wrong length bytes in two examples, =TS= format, RDM/discovery query types, =TARGET= param, version bytes, SDK bugs): see [[file:WSC_UPSTREAM.org][WSC_UPSTREAM.org]].
 
 * Sessions
 ** Scope

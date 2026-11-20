@@ -21,10 +21,11 @@ CI is green on Linux, Windows and macOS.
 - [X] =platform/paths=, =core/identity= (F-01) with tests
 - [X] =App::Run(StopToken)= + foreground mode with signal handling
 
-* TODO Phase 2 — Memory & codec (F-10, F-11, N-01, N-02)
-- [ ] =Frame=, =FramePool= (D-26: best fit, waste guard, idle eviction, memory cap) with in-slot control block; tests incl. allocation-counting test in steady traffic
-- [ ] libwsc decode/encode for all message types, golden round-trip tests
-- [ ] FuzzTest target on Decode
+* WIP Phase 2 — Memory & codec (F-10, F-11, N-01, N-02)
+All items pass on Linux (GCC, Clang ASan/UBSan, clang-tidy, coverage, 2 min fuzzing). Close the phase once CI is green on Windows and macOS.
+- [X] =Frame=, =FramePool= (D-26: reuse within the waste limit, idle eviction, memory cap); tests incl. allocation-counting test in steady traffic
+- [X] libwsc decode/encode for all message types, golden round-trip tests
+- [X] libFuzzer target on Decode (D-30)
 
 * TODO Phase 3 — First end-to-end path (F-13, F-14, F-20..F-22)
 - [ ] WebSocket session and WebRTC DataChannel session with =/ws= signalling (libdatachannel C API), both from the start (D-15)

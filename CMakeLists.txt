@@ -9,6 +9,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(WSC_SANITIZE "" CACHE STRING "Sanitizers for project targets, e.g. address,undefined")
 option(WSC_COVERAGE "Clang source-based coverage on project targets" OFF)
 option(WSC_CLANG_TIDY "Run clang-tidy on project targets while building" OFF)
+option(WSC_FUZZ "Build the libFuzzer targets in fuzz/ (Clang only)" OFF)
 
 include(cmake/ProjectOptions.cmake)
 
@@ -21,4 +22,9 @@ enable_testing()
 include(GoogleTest)
 
 add_subdirectory(testing)
+add_subdirectory(libwsc)
 add_subdirectory(src)
+add_subdirectory(tests)
+if(WSC_FUZZ)
+  add_subdirectory(fuzz)
+endif()

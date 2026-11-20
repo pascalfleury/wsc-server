@@ -13,8 +13,9 @@ Point cues (10.5) are common on lighting consoles, so this is not only theoretic
 
 Our handling until then: see the index ambiguity rule in [[file:CODEC.org][CODEC.org]].
 
-* TODO Spec 03: CUSTOM example has a wrong length byte
-The example for =lighting.custom.house_lights_on= uses length byte =0x10=, but =house_lights_on= is 15 bytes (=0x0f=).
+* TODO Wrong length bytes in two spec examples
+- Spec 03: the example for =lighting.custom.house_lights_on= uses length byte =0x10=, but =house_lights_on= is 15 bytes (=0x0f=).
+- Spec 02: the annotated =STREAM_CHANNELS= example gives =transport_len= =00 09=, but its Transport Descriptor (=02 01 01 C0 A8 01 64 19 36 00=) is 10 bytes.
 
 * TODO TS flag: timestamp format and position are undefined
 Spec 02 defines flag bit 11 =TS= ("Timestamp prefix attached") but not the timestamp's size, epoch, resolution, byte order, or whether it prefixes the payload or the transport descriptor. The JS SDK defines =EPOCH = 2024-01-01T00:00:00Z= but never writes a timestamp. Until defined, a receiver cannot parse a packet with TS = 1 (we reject it, D-17). Proposal: e.g. =u64= microseconds since the SDK's EPOCH, big-endian, prefixed to the payload and counted in =payload_len=.

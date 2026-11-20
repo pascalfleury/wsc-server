@@ -1,4 +1,5 @@
 add_subdirectory(core)
+add_subdirectory(memory)
 add_subdirectory(platform)
 
 add_executable(wsc-server main.cc)

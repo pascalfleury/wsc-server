@@ -6,20 +6,15 @@
 Immutable after being filled (decode or encode). Shared read-only as =std::shared_ptr<const Frame>=.
 
 ** FramePool (D-26)
-The pool starts empty and grows to fit the traffic it actually sees. Each slot is allocated at the size of the request that created it.
+The pool keeps a =std::vector<std::shared_ptr<Frame>>=, starts empty and grows to fit the traffic it sees. A frame owns its buffer (=std::unique_ptr<uint8_t[]>=) and records when it was last acquired. A frame is free when the pool holds the only reference (=use_count() == 1=, followed by an acquire fence).
 
-- *Acquire(n bytes):*
-  1. Best fit: take the smallest free slot with capacity >= n.
-  2. Waste guard: if that slot's capacity exceeds n by more than =max_slot_waste= (default 1 KiB), do not use it; allocate a new slot of size n instead. A small request never pins a big slot.
-  3. No fitting free slot: allocate a new slot of size n.
-- *Release:* when the last owner drops the Frame, its slot goes back on the free list, stamped with the release time.
-- *Idle eviction:* a periodic sweep (every second, on the injected =Clock=) frees slots that have stayed unused for longer than =slot_idle_timeout= (default 10 s).
-- *Effect:* a burst of large frames at startup leaves large slots behind; if only small frames follow, those large slots age out after 10 s. A size that recurs within the timeout always keeps a slot, so regular traffic (large or small) reaches a steady state with no allocations.
-- *Free list:* ordered by capacity (e.g. a sorted container or size-bucketed lists) for best fit, guarded by a mutex held only for the lookup; the allocation itself happens outside the lock.
-- *Memory cap:* total slot bytes (in use + free) are capped by =max_pool_bytes=. Growth is driven by network input, so without a cap a client could make the server allocate without limit. At the cap, Acquire first evicts free slots (largest first) to make room; if that is not enough, the request fails (see Exhaustion policy).
-
-** shared_ptr without heap allocation
-=std::make_shared= / =shared_ptr(p, deleter)= allocate a control block on the heap. Slots are variable-sized, so a slot is laid out as =[control block | Frame header | n bytes]=; the =shared_ptr= is built with a deleter that returns the slot to the pool and an allocator that places the control block in the slot's reserved header. The slot returns to the pool when the last owner releases it, with no separate heap block.
+- *Acquire(n bytes):* scan from the back (most recently acquired first) for a free frame with capacity >= n that either wastes at most =max_slot_waste= (default 1 KiB) or has been idle for longer than =slot_idle_timeout=. If found, it moves to the back of the vector (=std::rotate=, no allocation); a frame picked only because it is idle (its waste is over the limit) is instead handed out one last time and removed from the vector, so it is freed after this use. Otherwise a new frame of size n is allocated (=std::make_shared=) and appended. A small request never pins a recently used big frame.
+- *Release:* nothing to do; the frame becomes free when its last user drops it.
+- *Idle eviction:* a periodic sweep (every second, on the injected =Clock=) drops free frames not acquired for longer than =slot_idle_timeout= (default 10 s). Reusing the most recently acquired frame first lets surplus frames of a size gather at the front and age out.
+- *Effect:* a burst of large frames leaves large frames behind; if only small frames follow, they age out. A size that recurs within the timeout keeps its frame, so regular traffic reaches a steady state with no allocations.
+- *Memory cap:* the capacity of all pooled frames is capped by =max_pool_bytes= (a frame on its last use no longer counts). Growth is driven by network input, so without a cap a client could make the server allocate without limit. At the cap, Acquire first drops free frames from the front; if that is not enough, the request fails (see Exhaustion policy).
+- The vector is guarded by a mutex; new frames are allocated under it, which is rare once traffic is steady.
+- Rule: never keep a =weak_ptr= to a pooled frame; locking it after release would share a frame that is being reused.
 
 ** Exhaustion policy (memory cap reached)
 - State streams: drop the incoming frame, count it; the next update supersedes.
@@ -27,7 +22,7 @@ The pool starts empty and grows to fit the traffic it actually sees. Each slot i
 - Metric + rate-limited log warning in both cases.
 
 ** Metrics
-Slot allocations, slot evictions (idle and cap), bytes in use, bytes free, waste-guard allocations. A steadily rising allocation count in steady traffic means the waste guard or the idle timeout is set badly.
+Frame allocations, evictions (idle and cap), bytes in use, bytes free. A steadily rising allocation count in steady traffic means the waste guard or the idle timeout is set badly.
 
 * Forward router (=src/routing/=)
 - Input: =wsc::Message= (decoded, with Transport Descriptor).

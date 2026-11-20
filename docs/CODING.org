@@ -96,7 +96,7 @@ Applies to all project code (=libwsc/=, =src/=, =tests/=, =fuzz/=, =tools/=). Th
 - OS-specific code lives only in =src/platform/= and =src/discovery/= backends; =#ifdef= on the OS is not allowed elsewhere.
 
 * Testing
-- GoogleTest + GoogleMock, FuzzTest. Unit tests sit next to the code (=rate_shaper.cc= / =rate_shaper_test.cc=); =tests/= holds integration tests, interop tests and golden packets.
+- GoogleTest + GoogleMock, libFuzzer (D-30). Unit tests sit next to the code (=rate_shaper.cc= / =rate_shaper_test.cc=); =tests/= holds integration tests, interop tests and golden packets.
 - Every class has a unit test. A change in behaviour comes with a test in the same commit; a bug fix comes with a test that fails without the fix.
 - Fakes over mocks: hand-written fakes for =OutputAdapter=, =FrameSink=, =Session= and the clock live in a =testing/= library. Mocks only where the interaction itself is what is being tested.
 - No sleeping and no real sockets in unit tests: time is the fake clock, I/O is a fake. Real sockets (loopback) only in =tests/=.

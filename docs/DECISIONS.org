@@ -158,7 +158,7 @@ Google C++ style enforced by =clang-format= and =clang-tidy=; files are =.h= / =
 :PROPERTIES:
 :DATE: 2026-11-17
 :END:
-Slots are allocated at the size of the first request that needs them and returned to the pool on release. Acquire takes the smallest free slot that fits, unless it wastes more than =max_slot_waste= (default 1 KiB), in which case a slot of the exact size is allocated. Slots unused for =slot_idle_timeout= (default 10 s) are freed. A burst of large frames does not pin memory once traffic turns small, and sizes that recur keep their slots, so steady traffic allocates nothing (N-01). Total pool memory is capped by =max_pool_bytes= because growth is driven by network input; the exhaustion policy in DATAPATH.org applies at the cap. Best fit needs an ordered free list behind a short mutex. Slots are variable-sized, so the control block is placed in the slot by a deleter plus slot-placing allocator.
+The pool keeps a vector of =shared_ptr<Frame>=; a frame owns its buffer as =unique_ptr<uint8_t[]>=, and is free when the pool holds the only reference (=use_count() == 1=). Acquire reuses the most recently acquired free frame that fits and either wastes at most =max_slot_waste= (default 1 KiB) or is idle, else allocates a frame of the exact size. An idle frame that wastes more is handed out one last time and leaves the pool, so reuse cannot keep it alive. Free frames unused for =slot_idle_timeout= (default 10 s) are freed. A burst of large frames does not pin memory once traffic turns small, and sizes that recur keep their frames, so steady traffic allocates nothing (N-01). Total frame memory is capped by =max_pool_bytes= because growth is driven by network input; the exhaustion policy in DATAPATH.org applies at the cap. Chosen over placing the =shared_ptr= control block in pool slots with a custom allocator: same steady-state behaviour, much less code, and every buffer has one visible owner.
 
 * D-27 Full DMX universes by default, partial DMX from channel 1 as an option
 :PROPERTIES:
@@ -178,3 +178,9 @@ E1.31 receivers identify, merge and time out sources by CID, and expect a device
 :STATUS: confirmed
 :END:
 Each server has a display name (F-03), defaulting to the host name, set through the config API. It is the DNS-SD instance name and the =name= TXT key; the ID stays the stable key because mDNS may rename the instance on a conflict. A name change re-registers the service right away. Choices confirmed by the user on 2026-11-17.
+
+* D-30 Fuzzing with libFuzzer; sanitizer builds use sanitized dependencies
+:PROPERTIES:
+:DATE: 2026-11-20
+:END:
+Fuzz targets are plain libFuzzer entry points (=LLVMFuzzerTestOneInput=) in =fuzz/=, built with Clang when =WSC_FUZZ=ON=. FuzzTest has no vcpkg port and brings its own Abseil; libFuzzer ships with Clang and needs nothing. The =asan= preset builds its vcpkg dependencies with the same Clang and sanitizers (overlay triplet =x64-linux-asan= in =cmake/triplets/=): Abseil types such as =absl::Cord= (used by =absl::Status= payloads) change layout under a sanitizer, so mixing sanitized code with unsanitized Abseil crashes.
