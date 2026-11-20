@@ -29,10 +29,12 @@ jobs:
 
   format:
     name: clang-format
-    runs-on: ubuntu-latest
+    # Pinned: formatting differs between clang-format versions; match the local one (18).
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: git ls-files '*.h' '*.cc' | xargs clang-format --dry-run --Werror
+      - run: clang-format-18 --version
+      - run: git ls-files '*.h' '*.cc' | xargs clang-format-18 --dry-run --Werror
 
   sanitizers:
     name: ASan + UBSan + clang-tidy
