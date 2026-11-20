@@ -32,8 +32,8 @@ CLOSED: [2026-11-20 Fri 23:16]
 - [ ] WebSocket session and WebRTC DataChannel session with =/ws= signalling (libdatachannel C API), both from the start (D-15)
 - [ ] Keepalive handling, 5 s session timeout, =ACK= answers
 - [ ] Router (stateless)
-- [ ] RateShaper: latest-value slots + FIFO, adapter-level timer; =DeliveryModel= on adapters (D-21)
-- [ ] Universe buffers for partial =STREAM_CHANNELS= (F-27)
+- [ ] RateShaper: latest-value slots + FIFO, adapter-level timer; =DeliveryModel= on adapters (D-21); =StreamSlot=, =EventQueue=, =ShapingFor= done, the timer comes with the sACN adapter
+- [X] Universe buffers for partial =STREAM_CHANNELS= (F-27), one per source; merging several sources is the phase 4 arbiter
 - [ ] sACN output adapter, with CID derived from the server ID (=Uuid= name-based v5, D-28); E1.31 data packet encoder and =Uuid::FromName= done
 - [ ] Tool: =wsc-send= CLI to drive tests
 - Milestone: upstream JS client (WebRTC) and =wsc-send= (WebSocket) -> server -> sACN visible in a sACN viewer

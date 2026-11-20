@@ -2,6 +2,7 @@ add_subdirectory(core)
 add_subdirectory(memory)
 add_subdirectory(outputs)
 add_subdirectory(platform)
+add_subdirectory(shaping)
 
 add_executable(wsc-server main.cc)
 wsc_target_defaults(wsc-server)
