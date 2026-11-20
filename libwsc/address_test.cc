@@ -72,7 +72,7 @@ TEST(AddressTest, RefusesIndexAfterIndex) {
 
 TEST(AddressTest, RefusesReservedTokensAndLongCustom) {
   std::array<uint8_t, 512> buffer{};
-  for (const uint8_t t : {0x00, 0x80, 0xFE}) {
+  for (const uint8_t t : std::to_array<uint8_t>({0x00, 0x80, 0xFE})) {
     const std::array s = {Segment::Token(t)};
     EXPECT_FALSE(EncodeAddress(s, buffer).ok()) << int{t};
   }

@@ -77,7 +77,11 @@ std::optional<Body> DecodeBody(MessageType type, Reader& in) {
       return b;
     }
     case MessageType::kStreamTimecode:
-      return StreamTimecode{in.U8(), in.U8(), in.U8(), in.U8(), in.U8()};
+      return StreamTimecode{.hours = in.U8(),
+                            .minutes = in.U8(),
+                            .seconds = in.U8(),
+                            .frames = in.U8(),
+                            .rate = in.U8()};
     case MessageType::kControlCue: {
       ControlCue b;
       b.address = ReadAddress(in);

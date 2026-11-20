@@ -25,13 +25,13 @@ Packet Forward(Body body, Protocol protocol, Iface iface) {
   packet.header.flags = flags::kTransport | flags::kGateway;
   packet.header.id = 1;
   packet.body = body;
-  packet.transport =
-      TransportDescriptor{protocol,
-                          iface,
-                          serial ? AddrType::kSerial : AddrType::kIpv4,
-                          serial ? std::span<const uint8_t>(kSerialPort)
-                                 : std::span<const uint8_t>(kIpv4),
-                          {}};
+  packet.transport = TransportDescriptor{
+      .protocol = protocol,
+      .iface = iface,
+      .addr_type = serial ? AddrType::kSerial : AddrType::kIpv4,
+      .addr_data = serial ? std::span<const uint8_t>(kSerialPort)
+                          : std::span<const uint8_t>(kIpv4),
+      .params = {}};
   return packet;
 }
 

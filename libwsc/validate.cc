@@ -86,19 +86,21 @@ struct TypeRule {
 
 // Spec 05, message type-protocol matrix (applies when GW = 1).
 constexpr auto kProtocolsByType = std::to_array<TypeRule>({
-    {MessageType::kStreamChannels,
-     Protocols({kDmx512, kArtNet, kSacn, kKinet, kModbus, kOsc, kRaw})},
-    {MessageType::kStreamTimecode,
-     Protocols({kMtc, kOsc, kMidi, kArtNet, kRaw})},
-    {MessageType::kControlCue,
-     Protocols({kMsc, kOsc, kMidi, kHttp, kWebSocket, kGpiGpo, kRaw})},
-    {MessageType::kControlParam,
-     Protocols({kOsc, kMidi, kMidi2, kModbus, kHttp, kWebSocket, kCanOpen,
-                kProfinet, kEtherCat, kRaw})},
-    {MessageType::kTunnelRaw, Protocols({kRaw})},
-    {MessageType::kStateQuery, kAllProtocols},
-    {MessageType::kStateAnswer, kAllProtocols},
-    {MessageType::kStateError, kAllProtocols},
+    {.type = MessageType::kStreamChannels,
+     .protocols =
+         Protocols({kDmx512, kArtNet, kSacn, kKinet, kModbus, kOsc, kRaw})},
+    {.type = MessageType::kStreamTimecode,
+     .protocols = Protocols({kMtc, kOsc, kMidi, kArtNet, kRaw})},
+    {.type = MessageType::kControlCue,
+     .protocols =
+         Protocols({kMsc, kOsc, kMidi, kHttp, kWebSocket, kGpiGpo, kRaw})},
+    {.type = MessageType::kControlParam,
+     .protocols = Protocols({kOsc, kMidi, kMidi2, kModbus, kHttp, kWebSocket,
+                             kCanOpen, kProfinet, kEtherCat, kRaw})},
+    {.type = MessageType::kTunnelRaw, .protocols = Protocols({kRaw})},
+    {.type = MessageType::kStateQuery, .protocols = kAllProtocols},
+    {.type = MessageType::kStateAnswer, .protocols = kAllProtocols},
+    {.type = MessageType::kStateError, .protocols = kAllProtocols},
 });
 
 bool ProtocolAllowed(MessageType type, Protocol protocol) {

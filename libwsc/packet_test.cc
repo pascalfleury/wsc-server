@@ -147,9 +147,13 @@ TEST(PacketTest, RoundTripsI64AndHostname) {
   Packet packet;
   packet.header.flags = flags::kTransport | flags::kGateway;
   packet.header.id = 7;
-  packet.body = ControlParam{address, ValueType::kI64, value};
-  packet.transport = TransportDescriptor{
-      Protocol::kOsc, Iface::kTcp, AddrType::kHostname, host, {}};
+  packet.body =
+      ControlParam{.address = address, .type = ValueType::kI64, .value = value};
+  packet.transport = TransportDescriptor{.protocol = Protocol::kOsc,
+                                         .iface = Iface::kTcp,
+                                         .addr_type = AddrType::kHostname,
+                                         .addr_data = host,
+                                         .params = {}};
 
   const std::vector<uint8_t> bytes = EncodeOrDie(packet);
   const absl::StatusOr<Packet> decoded = Decode(bytes);
@@ -170,14 +174,16 @@ TEST(PacketTest, EncodeRejectsInvalidPackets) {
   const std::array<uint8_t, 2> two_bytes = {1, 2};
   Packet packet;
   packet.header.id = 1;
-  packet.body = ControlParam{address, ValueType::kU32, two_bytes};
+  packet.body = ControlParam{
+      .address = address, .type = ValueType::kU32, .value = two_bytes};
   EXPECT_EQ(Encode(packet, buffer).status().code(),
             absl::StatusCode::kInvalidArgument);
 
-  packet.body = ControlCue{std::span(address).first(1), CueAction::kStart};
+  packet.body = ControlCue{.address = std::span(address).first(1),
+                           .action = CueAction::kStart};
   EXPECT_FALSE(Encode(packet, buffer).ok());  // no terminator
 
-  packet.body = ControlCue{address, CueAction::kStart};
+  packet.body = ControlCue{.address = address, .action = CueAction::kStart};
   packet.header.id = 0;
   EXPECT_FALSE(Encode(packet, buffer).ok());
 
@@ -192,8 +198,11 @@ TEST(PacketTest, EncodeRejectsInvalidPackets) {
 
   const std::array<uint8_t, 4> bad_ipv4 = {10, 0, 0, 1};  // port missing
   packet.header.flags = flags::kTransport;
-  packet.transport = TransportDescriptor{
-      Protocol::kOsc, Iface::kUdp, AddrType::kIpv4, bad_ipv4, {}};
+  packet.transport = TransportDescriptor{.protocol = Protocol::kOsc,
+                                         .iface = Iface::kUdp,
+                                         .addr_type = AddrType::kIpv4,
+                                         .addr_data = bad_ipv4,
+                                         .params = {}};
   EXPECT_EQ(Encode(packet, buffer).status().code(),
             absl::StatusCode::kInvalidArgument);
 }

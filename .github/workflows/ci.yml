@@ -42,6 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/vcpkg
+      - run: clang-tidy --version
       - run: cmake --preset asan -DWSC_CLANG_TIDY=ON -DWSC_FUZZ=ON
       - run: cmake --build --preset asan
       - run: ctest --preset asan
