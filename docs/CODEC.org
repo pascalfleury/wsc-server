@@ -86,12 +86,7 @@ WSC 1.1.0 defines only =STATE_QUERY= type =KEEPALIVE (0x00)=, with no way to dis
 - Size: RDM parameter data is at most 231 bytes per message; reassembled overflow responses and device lists stay far below the 65 527-byte =data= limit. If a list is truncated anyway, status =PARTIAL=.
 
 ** Open points
-- [ ] Include =(RDM, TCP)= for RDMnet in the upstream proposal.
-- [ ] Confirm =RDM_SET= extra payload after =target_id= is acceptable to the upstream maintainers (a standard decoder would see trailing bytes).
-- [ ] Raise upstream: =TS= flag has no defined timestamp format.
-- [ ] Raise upstream: index ambiguity in spec 03 (point cues); spec 03's =CUSTOM= example has a wrong length byte (=0x10= for the 15-byte =house_lights_on=).
-- [ ] Report SDK bugs upstream: empty =CUSTOM= segment, iface =0= in =raw()=, no =STREAM_TIMECODE= decode, no =I64=.
-- [ ] Raise upstream: spec 03/04 put OSC paths / registers in the TD, but the TD has no field for them; propose a =TARGET= param (D-24).
+- [ ] Spec and SDK issues to raise upstream (index ambiguity, CUSTOM example length, =TS= format, RDM/discovery query types, =TARGET= param, version bytes, SDK bugs): see [[file:WSC_UPSTREAM.org][WSC_UPSTREAM.org]].
 
 * Sessions
 ** Scope

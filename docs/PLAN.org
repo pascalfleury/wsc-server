@@ -8,7 +8,7 @@ Each phase ends with something runnable/testable. Requirement IDs refer to [[fil
 - [X] Read WSC spec 01–08 and CHANGELOG (1.1.0)
 - [X] Resolve the =TBV= items in FUNCTIONAL.org, CODEC.org, DATAPATH.org, ADAPTERS.org
 - [X] Capture golden packets with =@asls/wsc-sdk= (=tools/golden/gen_golden.mjs= -> =tests/golden/=)
-- [ ] Open upstream issues: =TS= flag format, RDM query types proposal (D-14), =TARGET= TD param (D-24)
+- [ ] Open the upstream issues in [[file:WSC_UPSTREAM.org][WSC_UPSTREAM.org]]
 
 * WIP Phase 1 — Skeleton & CI (F-80, N-04)
 All items below are written but not yet built or run (no vcpkg on the development machine, no CI run yet). Tick them once the three-OS CI is green.

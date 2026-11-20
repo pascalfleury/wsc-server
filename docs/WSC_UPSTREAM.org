@@ -1,0 +1,40 @@
+#+TITLE: WSC — Issues to raise upstream
+#+STARTUP: overview shrink
+#+TODO: TODO POSTED | DONE CANCELLED
+
+Spec and SDK issues found while designing the server, to open at [[https://github.com/ASLS-org/WSC][ASLS-org/WSC]]. Each entry is written as the issue text. Existing upstream issues #1–#4 do not cover any of them. SDK findings come from running =@asls/wsc-sdk@2.2.0= (=tools/golden/gen_golden.mjs=, see =tests/golden/MANIFEST.json=).
+
+* TODO Address: consecutive indices are ambiguous with the u16 index form
+Spec 03 encodes an index <= 255 as =[0x80][u8]= and an index <= 65535 as =[0x80][hi][0x80][lo]=. Two consecutive small indices therefore produce the same bytes as one u16 index: =lighting.cue.10.5= -> =01 19 80 0a 80 05 00=, which the parsing rules in spec 03 decode as =lighting.cue.2565=. The SDK does exactly that (golden case =control_cue_point_cue=).
+
+Point cues (10.5) are common on lighting consoles, so this is not only theoretical. Options:
+- a distinct sentinel for the u16 form (e.g. =0x7F [hi][lo]=, currently reserved);
+- or a rule that an INDEX segment may never directly follow another INDEX segment, plus a defined encoding for point cues (CUSTOM string, or a FRACTION/SUB token).
+
+Our handling until then: see the index ambiguity rule in [[file:CODEC.org][CODEC.org]].
+
+* TODO Spec 03: CUSTOM example has a wrong length byte
+The example for =lighting.custom.house_lights_on= uses length byte =0x10=, but =house_lights_on= is 15 bytes (=0x0f=).
+
+* TODO TS flag: timestamp format and position are undefined
+Spec 02 defines flag bit 11 =TS= ("Timestamp prefix attached") but not the timestamp's size, epoch, resolution, byte order, or whether it prefixes the payload or the transport descriptor. The JS SDK defines =EPOCH = 2024-01-01T00:00:00Z= but never writes a timestamp. Until defined, a receiver cannot parse a packet with TS = 1 (we reject it, D-17). Proposal: e.g. =u64= microseconds since the SDK's EPOCH, big-endian, prefixed to the payload and counted in =payload_len=.
+
+* TODO Proposal: STATE_QUERY types for discovery and RDM (D-14)
+Spec 05 lists RDM (0x05) as a downstream protocol, but no message type can carry an RDM request, and there is no way to discover downstream devices. Proposal (implemented as an extension in our gateway):
+- =0x80 DISCOVER=: TD protocol selects the device table (ARTNET, SACN, RDM, OSC, MIDI, ...); answer is JSON.
+- =0x81 RDM_GET=, =0x82 RDM_SET=: GW = 1, TD protocol = RDM; =target_id= = UID; =RDM_SET= carries the parameter data after =target_id= (a decoder that does not know the type sees trailing bytes; is that acceptable?).
+- Answers via =STATE_ANSWER(query_id = request id)=.
+- Also: allow =(RDM, TCP)= in the protocol/interface matrix for RDMnet (E1.33).
+We picked 0x80+ to leave 0x01+ for upstream growth. Happy to renumber.
+
+* TODO Proposal: TARGET transport parameter (D-24)
+Spec 03/04 say software-specific identifiers (OSC path, QLab cue number, Modbus register) belong in the Transport Descriptor, but the TD has no field for them: address types are network/serial/USB locations and the five params are PRIORITY, TTL, BAUD_RATE, SEQUENCE, IFACE_IDX. Proposal: param =0x06 TARGET= (UTF-8), the protocol-specific item (e.g. =/eos/cue/42/fire=). A gateway uses it when present and falls back to its own mapping otherwise.
+
+* TODO Version bytes: 1.0.0 or 1.1.0?
+Spec 02 ("currently =[1, 0, 0]=") and the SDK (=WSC_VERSION=, header bytes) both say 1.0.0 while the CHANGELOG is at 1.1.0. Only the major byte matters for compatibility, but which minor should a 1.1.0 sender write?
+
+* TODO JS SDK deviations from the spec
+- =WscAddress.parse('lighting.custom.house_lights_on')= -> =01 fe 00 fe 0f house_lights_on 00=: the word "custom" becomes an extra, empty CUSTOM segment (golden case =control_cue_custom=).
+- =WscTransport.raw()= writes interface =0x00=, which spec 05 does not define (0x01-0x06) (golden case =tunnel_raw_sdk_helper=).
+- =WscPacket._decode= has no =STREAM_TIMECODE= case (=_decTimecode= exists but is never called), so =decode()= returns =null= for timecode.
+- =CONTROL_PARAM= value type =I64= (0x08) is in the enum but =_writeTypedValue= / =_readTypedValue= have no case for it ("Unsupported value type: 0x8").
