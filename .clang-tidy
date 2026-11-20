@@ -12,6 +12,8 @@ Checks: >
 WarningsAsErrors: '*'
 HeaderFilterRegex: '^(libwsc|src|tests|fuzz|tools)/'
 CheckOptions:
+  # std::stop_token is a cheap handle and passed by value by convention (std::jthread).
+  performance-unnecessary-value-param.AllowedTypes: 'std::stop_token'
   readability-identifier-naming.NamespaceCase: lower_case
   readability-identifier-naming.ClassCase: CamelCase
   readability-identifier-naming.StructCase: CamelCase

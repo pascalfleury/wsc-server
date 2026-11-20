@@ -11,7 +11,7 @@ Each phase ends with something runnable/testable. Requirement IDs refer to [[fil
 - [ ] Open the upstream issues in [[file:WSC_UPSTREAM.org][WSC_UPSTREAM.org]]
 
 * WIP Phase 1 — Skeleton & CI (F-80, N-04)
-All items below are written but not yet built or run (no vcpkg on the development machine, no CI run yet). Tick them once the three-OS CI is green.
+All items below are written and pass on Linux (GCC 13 dev build, Clang 18 ASan/UBSan, coverage, clang-format, clang-tidy). Windows and macOS have not run yet. Tick them once the three-OS CI is green.
 - [ ] CMake + vcpkg manifest (abseil, asio, cppitertools, gtest; nlohmann-json is added with its first user in phase 6)
 - [ ] =-fno-exceptions= / MSVC equivalents on project targets; warnings as errors
 - [ ] =clang-format= / =clang-tidy= checks, sanitizers and =llvm-cov= thresholds in CI (N-06); TSan job is added with the first concurrency tests (phase 3)

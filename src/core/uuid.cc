@@ -41,7 +41,6 @@ constexpr std::array<size_t, kDigitCount> kDigitPositions = [] {
   return positions;
 }();
 
-
 uint8_t HexValue(char c) {
   if (c >= '0' && c <= '9') return static_cast<uint8_t>(c - '0');
   return static_cast<uint8_t>(absl::ascii_tolower(c) - 'a' + 10);
@@ -75,8 +74,7 @@ bool HasCanonicalDashes(std::string_view text) {
 //                           so this digit is always 4
 Uuid Uuid::GenerateV4(absl::BitGenRef gen) {
   std::array<uint8_t, 16> bytes;
-  std::ranges::generate(bytes,
-                        [&gen] { return absl::Uniform<uint8_t>(gen); });
+  std::ranges::generate(bytes, [&gen] { return absl::Uniform<uint8_t>(gen); });
   bytes[6] &= 0x0F;
   bytes[6] |= 0x40;  // version 4
   bytes[8] &= 0x3F;

@@ -15,8 +15,7 @@ absl::Status RunInForeground(
   asio::signal_set signals(io);
   for (const int signal : {SIGINT, SIGTERM}) {
     asio::error_code ec;
-    signals.add(signal, ec);
-    if (ec) {
+    if (signals.add(signal, ec)) {
       return absl::InternalError(
           absl::StrCat("cannot handle signal ", signal, ": ", ec.message()));
     }

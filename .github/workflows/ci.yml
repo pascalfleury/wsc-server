@@ -46,7 +46,10 @@ jobs:
 
   coverage:
     name: Coverage thresholds
-    runs-on: ubuntu-latest
+    # Pinned: the LLVM tools are installed with a version suffix matching the image's clang.
+    runs-on: ubuntu-24.04
+    env:
+      LLVM_SUFFIX: -18
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/vcpkg

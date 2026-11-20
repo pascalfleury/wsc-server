@@ -27,7 +27,7 @@ Applies to all project code (=libwsc/=, =src/=, =tests/=, =fuzz/=, =tools/=). Th
 | Comments               | =//= style; every class and non-obvious function says what it is for, not how it is written                                                                                                  |
 
 * Language standard
-- The build sets C++23 (=CMAKE_CXX_STANDARD 23=, extensions off). Minimum toolchains: to be pinned in phase 1 from what the three CI images provide.
+- The build sets C++23 (=CMAKE_CXX_STANDARD 23=, extensions off). Minimum toolchains: GCC 13 and Clang 18 (with libstdc++ 13) build and pass all checks on Linux; MSVC and Apple Clang minimums are taken from the first green CI run.
 - A C++20/23 feature may be used once it compiles on all three CI toolchains (GCC/libstdc++, MSVC, Apple Clang/libc++). Apple's libc++ is usually the one that lags. Until then, use the Abseil equivalent.
 - No exceptions, no RTTI (=-fno-exceptions -fno-rtti= and MSVC equivalents); errors are =absl::Status= / =absl::StatusOr<T>=, always checked.
 
@@ -125,4 +125,4 @@ Applies to all project code (=libwsc/=, =src/=, =tests/=, =fuzz/=, =tools/=). Th
 | =llvm-cov=          | coverage thresholds                                                | CI, Linux                |
 
 * Open points
-- [ ] Pin minimum compiler versions and list which C++23 library features all three support (phase 1).
+- [ ] Pin minimum MSVC and Apple Clang versions from the CI images, and list which C++23 library features all three support (phase 1). Library features in use so far: =std::jthread= / =std::stop_token= (experimental in older libc++, enabled with =-fexperimental-library=), =std::ranges= algorithms.

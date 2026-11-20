@@ -62,7 +62,8 @@ absl::StatusOr<Uuid> LoadOrCreateServerId(
     out << id.ToString() << '\n';
     out.flush();
     if (!out) {
-      return absl::UnavailableError(absl::StrCat("cannot write ", Quoted(temp)));
+      return absl::UnavailableError(
+          absl::StrCat("cannot write ", Quoted(temp)));
     }
   }
   std::filesystem::rename(temp, file, ec);
