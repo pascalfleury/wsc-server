@@ -5,6 +5,8 @@
 // which sets ASIO_NO_EXCEPTIONS; Asio then expects the application to define
 // asio::detail::throw_exception.
 
+#include <cstdlib>
+
 #include "absl/log/log.h"
 #include "asio/detail/config.hpp"
 #include "asio/detail/throw_exception.hpp"
@@ -19,6 +21,7 @@ namespace detail {
 template <typename Exception>
 void throw_exception(const Exception& e ASIO_SOURCE_LOCATION_PARAM) {
   LOG(FATAL) << "fatal Asio error: " << e.what();
+  std::abort();  // not reached; GCC does not see LOG(FATAL) as noreturn
 }
 
 }  // namespace detail

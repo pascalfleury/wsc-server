@@ -70,7 +70,7 @@ struct StreamSlot {
 #+end_src
 - Slots live on the adapter's strand: no locks, no =atomic<shared_ptr>= (not fully available in Apple libc++ anyway).
 - The adapter keeps a pre-built wire packet per stream; a swap rewrites only the data portion, a keepalive resends the bytes unchanged.
-- Timers: one timer per adapter scanning due streams (min-heap by next deadline), not one timer per stream.
+- Timers: one timer per adapter, not one per stream. Each tick sends the due streams and re-arms the timer for the earliest =NextDeadline()= (a scan over the adapter's streams; a min-heap if a single adapter ever carries enough streams to make the scan show up).
 
 ** FIFO (kFifo)
 Bounded ring of =shared_ptr<const Frame>=, drained at max rate. Never coalesced or repeated. Overflow -> =STATE_ERROR= to originator.
