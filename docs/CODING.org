@@ -68,6 +68,10 @@ Applies to all project code (=libwsc/=, =src/=, =tests/=, =fuzz/=, =tools/=). Th
 - =std::ranges= and views are encouraged, not merely tolerated.
 - =std::format= is allowed.
 
+** Data structures
+- Above the wire level (routing, adapters, sessions, config), use high-level containers: =absl::flat_hash_map= / =absl::flat_hash_set=, =absl::btree_map= when order matters. They say what the code means.
+- Bit manipulation and small fixed lookup arrays belong to low-level packet work (codecs, compatibility matrices, protocol encoders), where the data is fixed and compact.
+
 * Wire data
 - Parsers read from =std::span<const uint8_t>= with explicit big-endian load/store helpers; no casting of byte buffers to packed structs.
 - Every length and offset is checked before use; a parser returns =absl::StatusOr= and never reads past the span.
