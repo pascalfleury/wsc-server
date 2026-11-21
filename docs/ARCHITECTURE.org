@@ -56,6 +56,67 @@ Decisions and their rationale are logged in [[file:DECISIONS.org][DECISIONS.org]
 - =OutputAdapter= :: forward sink for one protocol; owns its streams and their shapers; serialises to the wire.
 - A physical device (e.g. a MIDI port) may appear both as an =OutputAdapter= and an =InputTranslator=, sharing one device handle.
 
+* Classes and how they interact
+The classes that exist in the code, along the forward path. Boxes marked =(planned)= are not built yet; the session is the next piece (Phase 3).
+
+#+begin_example
+ WSC client (console)
+      │ WebSocket / WebRTC message
+      ▼
+ ┌───────────────────────┐  Acquire(n)   ┌──────────────────────────┐
+ │ Session    (planned)  │──────────────►│ FramePool                │
+ │ src/sessions/         │◄──────────────│ src/memory/              │
+ └──────────┬────────────┘ shared_ptr<   │ vector<shared_ptr<Frame>>│
+            │              Frame>        │ reuse, idle sweep, cap   │
+            │ bytes                      └──────────────────────────┘
+            ▼
+ ┌───────────────────────┐   Frame: owns its buffer (unique_ptr<uint8_t[]>),
+ │ wsc::Decode           │   shared read-only as shared_ptr<const Frame>
+ │ libwsc/packet.h       │
+ └──────────┬────────────┘   wsc::Packet = Header + optional<TransportDescriptor>
+            │                              + Body (variant of 8 message types)
+            │ Message = { shared_ptr<const Frame>, wsc::Packet }
+            ▼
+ ┌───────────────────────┐   1. wsc::Validate (libwsc/validate.h):
+ │ Router                │      flag invariants, (protocol, iface),
+ │ src/routing/          │      (type, protocol), TUNNEL_RAW only with RAW
+ │ flat_hash_map<        │   2. lookup by (protocol, iface)
+ │  (protocol, iface),   │   3. adapter.Submit(message)
+ │  OutputAdapter*>      │   errors: absl::Status carrying the WSC error code
+ └──────────┬────────────┘           (wsc::Error / wsc::GetErrorCode)
+            │ Submit(Message)
+            ▼
+ ┌───────────────────────┐   «interface» OutputAdapter (src/routing/):
+ │ SacnAdapter           │   protocol(), ifaces(), model(), enabled(), Submit()
+ │ src/outputs/sacn/     │
+ │ strand + steady_timer │   Submit posts to the strand; each Tick sends what
+ └──────────┬────────────┘   is due and re-arms the timer for the next deadline
+            │ Apply(packet), Tick(now)
+            ▼
+ ┌─────────────────────────────────────────────────────────────┐
+ │ SacnStreams                       src/outputs/sacn/         │
+ │ flat_hash_map<(destination, universe), Stream>              │
+ │   Stream: UniverseBuffer  ── slice at start_channel, extent │
+ │           StreamSlot<Channels> ── latest value, 44 Hz max,  │
+ │                                   1 s keepalive (shaping/)  │
+ │           priority (TD PRIORITY), sequence                  │
+ │ CID = SacnCid(server ID, output id) = Uuid::FromName (D-28) │
+ └──────────┬──────────────────────────────────────────────────┘
+            │ e131::Encode (src/outputs/sacn/e131.h) → E1.31 data packet
+            ▼
+ ┌───────────────────────┐   «interface» DatagramSender (src/outputs/)
+ │ UdpSender             │   FakeDatagramSender in testing/ for unit tests
+ │ asio UDP socket       │
+ └──────────┬────────────┘
+            ▼
+     sACN receivers (multicast 239.255.hi.lo:5568 or unicast)
+#+end_example
+
+Supporting pieces:
+- =App= (=src/core/app.h=): owns the server ID (=LoadOrCreateServerId=, =core/identity.h=) and runs until its =std::stop_token= is set; =RunInForeground= (=src/platform/foreground.h=) sets it on SIGINT / SIGTERM.
+- =Clock= (=src/core/clock.h=): injected wherever time matters (=FramePool=, =SacnAdapter=); =FakeClock= in =testing/= for tests.
+- =EventQueue= and =ShapingFor= (=src/shaping/=): the FIFO and the delivery-model policy table, used by event adapters once they exist.
+
 * Concurrency model
 - One =asio::io_context= run by a small thread pool.
 - One strand per session and per output adapter; shaper timers run on the adapter's strand, so per-stream state needs no locks or atomics.
