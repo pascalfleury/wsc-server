@@ -41,12 +41,12 @@ class EventQueue {
   }
 
   // When Poll() returns the next event; InfiniteFuture when empty.
-  absl::Time NextDeadline() const {
+  [[nodiscard]] absl::Time NextDeadline() const {
     if (size_ == 0) return absl::InfiniteFuture();
     return last_sent_ + min_send_interval_;
   }
 
-  size_t size() const { return size_; }
+  [[nodiscard]] size_t size() const { return size_; }
 
  private:
   absl::Duration min_send_interval_;

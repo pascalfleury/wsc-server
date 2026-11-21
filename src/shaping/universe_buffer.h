@@ -23,12 +23,12 @@ class UniverseBuffer {
   absl::Status Apply(uint16_t start_channel, std::span<const uint8_t> values);
 
   // The highest channel written so far; 0 when nothing was written.
-  size_t extent() const { return extent_; }
+  [[nodiscard]] size_t extent() const { return extent_; }
 
   // The channels to send: all kChannels by default, or with `partial_dmx`
   // channels 1 up to extent() (sACN, Art-Net and DMX512 accept short frames
   // but no start offset).
-  std::span<const uint8_t> Frame(bool partial_dmx) const {
+  [[nodiscard]] std::span<const uint8_t> Frame(bool partial_dmx) const {
     return std::span(channels_).first(partial_dmx ? extent_ : kChannels);
   }
 

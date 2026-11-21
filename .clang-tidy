@@ -10,7 +10,7 @@ Checks: >
   -modernize-use-trailing-return-type,
   -bugprone-easily-swappable-parameters
 WarningsAsErrors: '*'
-HeaderFilterRegex: '^(libwsc|src|tests|fuzz|tools)/'
+HeaderFilterRegex: '.*/(libwsc|src|testing|tests|fuzz)/.*\.h$'
 CheckOptions:
   # std::stop_token is a cheap handle and passed by value by convention (std::jthread).
   performance-unnecessary-value-param.AllowedTypes: 'std::stop_token'

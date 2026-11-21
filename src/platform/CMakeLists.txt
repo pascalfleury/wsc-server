@@ -1,6 +1,6 @@
 # Asio without exceptions; include it only through src/platform/asio.h.
 add_library(wsc_asio INTERFACE)
-target_link_libraries(wsc_asio INTERFACE asio::asio)
+target_link_libraries(wsc_asio INTERFACE asio::asio absl::log)
 target_compile_definitions(wsc_asio INTERFACE
   ASIO_STANDALONE ASIO_NO_EXCEPTIONS ASIO_NO_TYPEID
   ASIO_DISABLE_STD_SOURCE_LOCATION ASIO_DISABLE_STD_EXPERIMENTAL_SOURCE_LOCATION)

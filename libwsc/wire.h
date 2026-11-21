@@ -15,10 +15,10 @@ class Reader {
  public:
   explicit Reader(std::span<const uint8_t> bytes) : bytes_(bytes) {}
 
-  bool ok() const { return ok_; }
-  size_t remaining() const { return bytes_.size(); }
+  [[nodiscard]] bool ok() const { return ok_; }
+  [[nodiscard]] size_t remaining() const { return bytes_.size(); }
   // Next byte without consuming it; 0 at the end (callers check remaining()).
-  uint8_t Peek() const { return bytes_.empty() ? 0 : bytes_[0]; }
+  [[nodiscard]] uint8_t Peek() const { return bytes_.empty() ? 0 : bytes_[0]; }
 
   uint8_t U8() { return static_cast<uint8_t>(Uint(1)); }
   uint16_t U16() { return static_cast<uint16_t>(Uint(2)); }
@@ -59,8 +59,8 @@ class Writer {
  public:
   explicit Writer(std::span<uint8_t> out) : out_(out) {}
 
-  bool ok() const { return ok_; }
-  size_t written() const { return pos_; }
+  [[nodiscard]] bool ok() const { return ok_; }
+  [[nodiscard]] size_t written() const { return pos_; }
 
   void U8(uint8_t v) { Uint(v, 1); }
   void U16(uint16_t v) { Uint(v, 2); }

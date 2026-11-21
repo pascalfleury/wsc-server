@@ -5,13 +5,12 @@
 // which sets ASIO_NO_EXCEPTIONS; Asio then expects the application to define
 // asio::detail::throw_exception.
 
-#include <cstdio>
-#include <cstdlib>
-
+#include "absl/log/log.h"
 #include "asio/detail/config.hpp"
 #include "asio/detail/throw_exception.hpp"
 
-namespace asio {
+// The inline-namespace macro sits between the two, so they cannot be merged.
+namespace asio {  // NOLINT(modernize-concat-nested-namespaces)
 ASIO_INLINE_NAMESPACE_BEGIN
 namespace detail {
 
@@ -19,8 +18,7 @@ namespace detail {
 // std::error_code overload, where a failure is a programming or system error.
 template <typename Exception>
 void throw_exception(const Exception& e ASIO_SOURCE_LOCATION_PARAM) {
-  std::fprintf(stderr, "fatal Asio error: %s\n", e.what());
-  std::abort();
+  LOG(FATAL) << "fatal Asio error: " << e.what();
 }
 
 }  // namespace detail

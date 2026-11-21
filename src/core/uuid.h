@@ -25,9 +25,9 @@ class Uuid {
   static absl::StatusOr<Uuid> Parse(std::string_view text);
 
   // Returns the canonical lower-case form.
-  std::string ToString() const;
+  [[nodiscard]] std::string ToString() const;
 
-  const std::array<uint8_t, 16>& bytes() const { return bytes_; }
+  [[nodiscard]] const std::array<uint8_t, 16>& bytes() const { return bytes_; }
 
   friend bool operator==(const Uuid&, const Uuid&) = default;
 

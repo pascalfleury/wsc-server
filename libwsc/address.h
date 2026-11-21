@@ -22,10 +22,14 @@ inline constexpr uint8_t kCustom = 0xFE;
 struct Segment {
   enum class Kind : uint8_t { kToken, kIndex, kCustom };
 
-  static Segment Token(uint8_t value) { return {Kind::kToken, value, 0, {}}; }
-  static Segment Index(uint16_t value) { return {Kind::kIndex, 0, value, {}}; }
+  static Segment Token(uint8_t value) {
+    return {.kind = Kind::kToken, .token = value, .index = 0, .text = {}};
+  }
+  static Segment Index(uint16_t value) {
+    return {.kind = Kind::kIndex, .token = 0, .index = value, .text = {}};
+  }
   static Segment Custom(std::string_view text) {
-    return {Kind::kCustom, 0, 0, text};
+    return {.kind = Kind::kCustom, .token = 0, .index = 0, .text = text};
   }
 
   Kind kind;

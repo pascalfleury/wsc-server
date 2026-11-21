@@ -11,13 +11,13 @@ namespace wsc_server {
 class Clock {
  public:
   virtual ~Clock() = default;
-  virtual absl::Time Now() const = 0;
+  [[nodiscard]] virtual absl::Time Now() const = 0;
 };
 
 // The real wall clock.
 class SystemClock final : public Clock {
  public:
-  absl::Time Now() const override { return absl::Now(); }
+  [[nodiscard]] absl::Time Now() const override { return absl::Now(); }
 };
 
 }  // namespace wsc_server

@@ -28,7 +28,7 @@ class App {
   // Blocks until `stop` is requested.
   absl::Status Run(std::stop_token stop);
 
-  const Uuid& server_id() const { return server_id_; }
+  [[nodiscard]] const Uuid& server_id() const { return server_id_; }
 
  private:
   explicit App(const Uuid& server_id) : server_id_(server_id) {}

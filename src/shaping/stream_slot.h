@@ -39,7 +39,7 @@ class StreamSlot {
 
   // When Poll() has something to send next; InfiniteFuture when nothing will
   // be due until the next Update().
-  absl::Time NextDeadline() const {
+  [[nodiscard]] absl::Time NextDeadline() const {
     if (dirty_) return last_sent_ + limits_.min_send_interval;
     if (has_front_ && limits_.keepalive_interval > absl::ZeroDuration()) {
       return last_sent_ + limits_.keepalive_interval;

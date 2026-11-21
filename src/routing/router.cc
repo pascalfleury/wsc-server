@@ -1,6 +1,7 @@
 #include "src/routing/router.h"
 
 #include <cstdint>
+#include <string>
 #include <utility>
 
 #include "absl/status/status.h"
@@ -13,14 +14,23 @@
 namespace wsc_server {
 namespace {
 
-uint8_t Code(wsc::Protocol protocol) { return static_cast<uint8_t>(protocol); }
+std::string Describe(wsc::Protocol protocol, wsc::Iface iface) {
+  return absl::StrCat("protocol 0x", absl::Hex(static_cast<uint8_t>(protocol)),
+                      " on iface 0x", absl::Hex(static_cast<uint8_t>(iface)));
+}
 
 }  // namespace
 
 absl::Status Router::Register(OutputAdapter& adapter) {
-  if (!adapters_.try_emplace(adapter.protocol(), &adapter).second) {
-    return absl::AlreadyExistsError(absl::StrCat(
-        "protocol 0x", absl::Hex(Code(adapter.protocol())), " has an adapter"));
+  const wsc::Protocol protocol = adapter.protocol();
+  for (const wsc::Iface iface : adapter.ifaces()) {
+    if (adapters_.contains({protocol, iface})) {
+      return absl::AlreadyExistsError(
+          absl::StrCat(Describe(protocol, iface), " has an adapter"));
+    }
+  }
+  for (const wsc::Iface iface : adapter.ifaces()) {
+    adapters_.emplace(Key{protocol, iface}, &adapter);
   }
   return absl::OkStatus();
 }
@@ -34,18 +44,19 @@ absl::Status Router::Route(Message message) const {
     return wsc::Error(wsc::ErrorCode::kNoRoute,
                       "packet does not request gateway forwarding (GW = 0)");
   }
-  const uint8_t protocol = Code(packet.transport->protocol);
-  const auto it = adapters_.find(packet.transport->protocol);
+  const wsc::TransportDescriptor& td = *packet.transport;
+  const auto it = adapters_.find(Key{td.protocol, td.iface});
   if (it == adapters_.end()) {
-    return wsc::Error(
-        wsc::ErrorCode::kNoRoute,
-        absl::StrCat("no output adapter for protocol 0x", absl::Hex(protocol)));
+    return wsc::Error(wsc::ErrorCode::kNoRoute,
+                      absl::StrCat("no output adapter for ",
+                                   Describe(td.protocol, td.iface)));
   }
   OutputAdapter& adapter = *it->second;
   if (!adapter.enabled()) {
-    return wsc::Error(wsc::ErrorCode::kConfigError,
-                      absl::StrCat("output adapter for protocol 0x",
-                                   absl::Hex(protocol), " is disabled"));
+    return wsc::Error(
+        wsc::ErrorCode::kConfigError,
+        absl::StrCat("output adapter for ", Describe(td.protocol, td.iface),
+                     " is disabled"));
   }
   adapter.Submit(std::move(message));
   return absl::OkStatus();

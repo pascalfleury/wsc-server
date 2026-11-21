@@ -123,7 +123,8 @@ enum class AnswerStatus : uint8_t {
 
 enum class AnswerFormat : uint8_t { kRaw = 0x00, kJson = 0x01 };
 
-enum class ErrorCode : uint16_t {
+// uint16_t: the wire field is 2 bytes (spec 07).
+enum class ErrorCode : uint16_t {  // NOLINT(performance-enum-size)
   kProtocolVersion = 0x0001,
   kInvalidMessageType = 0x0002,
   kMalformedPacket = 0x0003,

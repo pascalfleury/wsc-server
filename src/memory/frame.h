@@ -16,13 +16,16 @@ namespace wsc_server {
 class Frame {
  public:
   explicit Frame(size_t capacity)
+      // NOLINTNEXTLINE(modernize-avoid-c-arrays): a run-time sized buffer
       : buffer_(std::make_unique<uint8_t[]>(capacity)), capacity_(capacity) {}
 
   Frame(const Frame&) = delete;
   Frame& operator=(const Frame&) = delete;
 
-  std::span<const uint8_t> bytes() const { return {buffer_.get(), size_}; }
-  size_t capacity() const { return capacity_; }
+  [[nodiscard]] std::span<const uint8_t> bytes() const {
+    return {buffer_.get(), size_};
+  }
+  [[nodiscard]] size_t capacity() const { return capacity_; }
 
   std::span<uint8_t> mutable_buffer() { return {buffer_.get(), capacity_}; }
   // Sets the filled length, clamped to the capacity.
@@ -31,7 +34,7 @@ class Frame {
  private:
   friend class FramePool;
 
-  std::unique_ptr<uint8_t[]> buffer_;
+  std::unique_ptr<uint8_t[]> buffer_;  // NOLINT(modernize-avoid-c-arrays)
   size_t capacity_;
   size_t size_ = 0;
   absl::Time last_acquired_ = absl::InfinitePast();  // set by FramePool

@@ -11,7 +11,7 @@ class FakeClock final : public Clock {
  public:
   explicit FakeClock(absl::Time start = absl::UnixEpoch()) : now_(start) {}
 
-  absl::Time Now() const override { return now_; }
+  [[nodiscard]] absl::Time Now() const override { return now_; }
   void Advance(absl::Duration by) { now_ += by; }
 
  private:
