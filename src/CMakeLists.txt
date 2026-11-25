@@ -3,6 +3,7 @@ add_subdirectory(memory)
 add_subdirectory(outputs)
 add_subdirectory(platform)
 add_subdirectory(routing)
+add_subdirectory(sessions)
 add_subdirectory(shaping)
 
 add_executable(wsc-server main.cc)

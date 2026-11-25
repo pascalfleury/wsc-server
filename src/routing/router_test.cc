@@ -18,36 +18,14 @@
 #include "src/memory/frame.h"
 #include "src/routing/message.h"
 #include "src/routing/output_adapter.h"
+#include "testing/fake_output_adapter.h"
 
 namespace wsc_server {
 namespace {
 
 using ::testing::Optional;
 
-class FakeAdapter final : public OutputAdapter {
- public:
-  FakeAdapter(wsc::Protocol protocol, std::vector<wsc::Iface> ifaces)
-      : protocol_(protocol), ifaces_(std::move(ifaces)) {}
-
-  [[nodiscard]] wsc::Protocol protocol() const override { return protocol_; }
-  [[nodiscard]] std::span<const wsc::Iface> ifaces() const override {
-    return ifaces_;
-  }
-  [[nodiscard]] DeliveryModel model() const override {
-    return DeliveryModel::kCyclic;
-  }
-  [[nodiscard]] bool enabled() const override { return enabled_; }
-  void Submit(Message message) override {
-    submitted.push_back(std::move(message));
-  }
-
-  bool enabled_ = true;
-  std::vector<Message> submitted;
-
- private:
-  wsc::Protocol protocol_;
-  std::vector<wsc::Iface> ifaces_;
-};
+using FakeAdapter = FakeOutputAdapter;
 
 constexpr std::array<uint8_t, 6> kIpv4 = {239, 255, 0, 1, 0x15, 0xC0};
 
