@@ -27,22 +27,26 @@ struct Shaping {
   bool keepalive;  // repeat the last value at keepalive_interval
 };
 
-// The policy table of DATAPATH.org (Rate shaping, Policies).
+  // The policy table of DATAPATH.org (Rate shaping, Policies).
 constexpr Shaping ShapingFor(DeliveryModel model, wsc::MessageType type) {
   using enum wsc::MessageType;
+
   switch (model) {
     case DeliveryModel::kCyclic:
       // Timecode that stops must look stopped: no keepalive.
       return {.policy = ShapingPolicy::kLatestValue,
-              .keepalive = type == kStreamChannels};
+        .keepalive = type == kStreamChannels};
+
     case DeliveryModel::kEvent:
       if (type == kControlCue || type == kTunnelRaw) {
         return {.policy = ShapingPolicy::kFifo, .keepalive = false};
       }
       return {.policy = ShapingPolicy::kLatestValue, .keepalive = false};
+
     case DeliveryModel::kTransactional:
       return {.policy = ShapingPolicy::kTransaction, .keepalive = false};
   }
+
   return {.policy = ShapingPolicy::kFifo, .keepalive = false};
 }
 

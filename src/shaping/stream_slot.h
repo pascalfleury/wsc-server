@@ -41,6 +41,8 @@ class StreamSlot {
   // be due until the next Update().
   [[nodiscard]] absl::Time NextDeadline() const {
     if (dirty_) return last_sent_ + limits_.min_send_interval;
+    // A zero keepalive interval means no repeats at all: falls through to
+    // InfiniteFuture() below.
     if (has_front_ && limits_.keepalive_interval > absl::ZeroDuration()) {
       return last_sent_ + limits_.keepalive_interval;
     }

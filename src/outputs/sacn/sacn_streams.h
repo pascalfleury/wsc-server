@@ -69,6 +69,9 @@ class SacnStreams {
   struct Stream {
     explicit Stream(RateLimits limits) : slot(limits) {}
 
+    // shortcut: one buffer shared by all sources, so overlapping channels are
+    // last-writer-wins and a lost source's channels hold; per-source buffers
+    // with priority + HTP merge come with the Phase 4 arbiter (D-22, D-23).
     UniverseBuffer buffer;
     StreamSlot<Channels> slot;
     uint8_t priority = e131::kDefaultPriority;
