@@ -3,12 +3,14 @@
 
 #include <array>
 #include <cstdint>
+#include <memory>
 #include <span>
 
 #include "absl/status/status.h"
 #include "absl/time/time.h"
 #include "libwsc/packet.h"
 #include "src/core/clock.h"
+#include "src/memory/frame.h"
 #include "src/memory/frame_pool.h"
 #include "src/routing/router.h"
 
@@ -36,8 +38,13 @@ class Session {
   Session(SessionTransport& transport, const Router& router, FramePool& pool,
           const Clock& clock);
 
-  // Handles one received message.
+  // Handles one received message: copies it into a pooled Frame, then
+  // OnFrame().
   void OnMessage(std::span<const uint8_t> bytes);
+
+  // Handles one received message already placed in a Frame (the transport
+  // fills it on its own thread; FramePool is thread-safe).
+  void OnFrame(std::shared_ptr<const Frame> frame);
 
   // Closes the transport when the peer has been silent for kTimeout; returns
   // true then. Call periodically.

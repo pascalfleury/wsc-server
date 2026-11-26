@@ -43,9 +43,6 @@ Session::Session(SessionTransport& transport, const Router& router,
       last_received_(clock.Now()) {}
 
 void Session::OnMessage(std::span<const uint8_t> bytes) {
-  if (closed_) return;
-  last_received_ = clock_.Now();
-
   absl::StatusOr<std::shared_ptr<Frame>> frame = pool_.Acquire(bytes.size());
   if (!frame.ok()) {
     // shortcut: dropped and logged; DATAPATH.org wants STATE_ERROR for events
@@ -55,9 +52,16 @@ void Session::OnMessage(std::span<const uint8_t> bytes) {
   }
   std::ranges::copy(bytes, (*frame)->mutable_buffer().begin());
   (*frame)->set_size(bytes.size());
-  Message message{.frame = *std::move(frame), .packet = {}};
+  OnFrame(*std::move(frame));
+}
 
-  absl::StatusOr<wsc::Packet> packet = wsc::Decode(message.frame->bytes());
+void Session::OnFrame(std::shared_ptr<const Frame> frame) {
+  if (closed_) return;
+  last_received_ = clock_.Now();
+  Message message{.frame = std::move(frame), .packet = {}};
+  const std::span<const uint8_t> bytes = message.frame->bytes();
+
+  absl::StatusOr<wsc::Packet> packet = wsc::Decode(bytes);
   if (!packet.ok()) {
     if (!wsc::IsDrop(packet.status())) {
       SendError(RawId(bytes), packet.status());

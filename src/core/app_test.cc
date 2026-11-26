@@ -20,6 +20,8 @@ class AppTest : public testing::Test {
     options_.state_dir = std::filesystem::path(testing::TempDir()) /
                          (std::string("wsc_app_") + info->name());
     std::filesystem::remove_all(options_.state_dir, ignored_);
+    options_.port = 0;  // never clash with a running server
+    options_.bind_address = "127.0.0.1";
   }
   void TearDown() override {
     std::filesystem::remove_all(options_.state_dir, ignored_);

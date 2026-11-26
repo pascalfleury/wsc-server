@@ -1,0 +1,7 @@
+# ThreadSanitizer suppressions for third-party code (tsan preset, ctest).
+# Keep each entry as narrow as possible and say why.
+
+# libdatachannel takes its internal synchronized_callback mutexes in different
+# orders during connection setup and close (lock-order inversion inside
+# rtc::impl, no project frames involved). Reported against 0.24.6.
+deadlock:rtc::synchronized_callback

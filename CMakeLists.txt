@@ -18,6 +18,7 @@ find_package(asio CONFIG REQUIRED)
 find_package(cppitertools CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 find_package(OpenSSL REQUIRED)
+find_package(LibDataChannel CONFIG REQUIRED)
 
 enable_testing()
 include(GoogleTest)

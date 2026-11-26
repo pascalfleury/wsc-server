@@ -12,7 +12,9 @@ target_link_libraries(wsc_core PUBLIC
 add_library(wsc_app app.cc app.h)
 wsc_target_defaults(wsc_app)
 target_link_libraries(wsc_app PUBLIC wsc_core absl::status absl::statusor
-  PRIVATE wsc_asio absl::log absl::memory absl::random_random)
+  PRIVATE wsc_asio wsc_codec wsc_memory wsc_outputs wsc_routing wsc_sessions
+  absl::log absl::memory absl::random_random absl::synchronization
+  absl::time)
 
 wsc_add_test(uuid_test wsc_core)
 wsc_add_test(identity_test wsc_core)

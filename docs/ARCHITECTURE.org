@@ -57,18 +57,25 @@ Decisions and their rationale are logged in [[file:DECISIONS.org][DECISIONS.org]
 - A physical device (e.g. a MIDI port) may appear both as an =OutputAdapter= and an =InputTranslator=, sharing one device handle.
 
 * Classes and how they interact
-The classes that exist in the code, along the forward path. Boxes marked =(planned)= are not built yet; the session is the next piece (Phase 3).
+The classes that exist in the code, along the forward path. =WsServer= serves plain WebSocket sessions; WebRTC DataChannel sessions on the same endpoint are the next piece (Phase 3).
 
 #+begin_example
  WSC client (console)
       │ WebSocket / WebRTC message
       ▼
  ┌───────────────────────┐  Acquire(n)   ┌──────────────────────────┐
- │ Session    (planned)  │──────────────►│ FramePool                │
- │ src/sessions/         │◄──────────────│ src/memory/              │
- └──────────┬────────────┘ shared_ptr<   │ vector<shared_ptr<Frame>>│
-            │              Frame>        │ reuse, idle sweep, cap   │
-            │ bytes                      └──────────────────────────┘
+ │ WsServer              │──────────────►│ FramePool                │
+ │ ws://host:4515/ws     │◄──────────────│ src/memory/              │
+ │ (libdatachannel C API)│ shared_ptr<   │ vector<shared_ptr<Frame>>│
+ └──────────┬────────────┘ Frame>        │ reuse, idle sweep, cap   │
+            │ one Connection per socket, └──────────────────────────┘
+            │ its own strand + 1 s timeout check
+            ▼
+ ┌───────────────────────┐   «interface» SessionTransport: Send(), Close()
+ │ Session               │   answers KEEPALIVE itself; STATE_ERROR with the
+ │ src/sessions/         │   offending id; ACK -> STATE_ANSWER; closes after
+ └──────────┬────────────┘   5 s of silence
+            │ frame bytes
             ▼
  ┌───────────────────────┐   Frame: owns its buffer (unique_ptr<uint8_t[]>),
  │ wsc::Decode           │   shared read-only as shared_ptr<const Frame>
@@ -113,7 +120,7 @@ The classes that exist in the code, along the forward path. Boxes marked =(plann
 #+end_example
 
 Supporting pieces:
-- =App= (=src/core/app.h=): owns the server ID (=LoadOrCreateServerId=, =core/identity.h=) and runs until its =std::stop_token= is set; =RunInForeground= (=src/platform/foreground.h=) sets it on SIGINT / SIGTERM.
+- =App= (=src/core/app.h=): owns the server ID (=LoadOrCreateServerId=, =core/identity.h=); =Run()= builds the =io_context= and its threads, the =FramePool= with its one-second sweep, the =Router= with the =SacnAdapter= (CID =SacnCid(server ID, "default")=) and the =WsServer=, and runs until its =std::stop_token= is set; =RunInForeground= (=src/platform/foreground.h=) sets it on SIGINT / SIGTERM.
 - =Clock= (=src/core/clock.h=): injected wherever time matters (=FramePool=, =SacnAdapter=); =FakeClock= in =testing/= for tests.
 - =EventQueue= and =ShapingFor= (=src/shaping/=): the FIFO and the delivery-model policy table, used by event adapters once they exist.
 

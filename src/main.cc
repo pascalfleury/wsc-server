@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <stop_token>
@@ -18,6 +19,11 @@ ABSL_FLAG(std::string, state_dir, "",
           "Directory for persistent state (server ID, configuration). "
           "Default: the per-user configuration directory.");
 
+ABSL_FLAG(uint16_t, port, 4515,
+          "Port of the WebSocket endpoint ws://host:port/ws.");
+ABSL_FLAG(std::string, bind_address, "",
+          "Address to listen on. Default: all interfaces.");
+
 namespace wsc_server {
 namespace {
 
@@ -29,7 +35,10 @@ absl::Status Main() {
     state_dir = *std::move(default_dir);
   }
 
-  const auto app = App::Create({.state_dir = state_dir});
+  const auto app =
+      App::Create({.state_dir = state_dir,
+                   .port = absl::GetFlag(FLAGS_port),
+                   .bind_address = absl::GetFlag(FLAGS_bind_address)});
   if (!app.ok()) return app.status();
   return RunInForeground(
       [&app](std::stop_token stop) { return (*app)->Run(stop); });

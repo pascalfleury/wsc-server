@@ -29,8 +29,8 @@ CLOSED: [2026-11-20 Fri 23:16]
 - [X] libFuzzer target on Decode (D-30)
 
 * WIP Phase 3 — First end-to-end path (F-13, F-14, F-20..F-22)
-- [ ] WebSocket session and WebRTC DataChannel session with =/ws= signalling (libdatachannel C API), both from the start (D-15)
-- [ ] Keepalive handling, 5 s session timeout, =ACK= answers; =Session= logic done, the timeout timer comes with the WebSocket server
+- [ ] WebSocket session and WebRTC DataChannel session with =/ws= signalling (libdatachannel C API), both from the start (D-15); WebSocket sessions done, WebRTC next
+- [X] Keepalive handling, 5 s session timeout, =ACK= answers
 - [X] Router (stateless)
 - [X] RateShaper: latest-value slots + FIFO, adapter-level timer; =DeliveryModel= on adapters (D-21)
 - [X] Universe buffers for partial =STREAM_CHANNELS= (F-27), one per source; merging several sources is the phase 4 arbiter

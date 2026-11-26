@@ -50,6 +50,16 @@ jobs:
           mkdir -p build/fuzz-corpus
           build/asan/fuzz/decode_fuzzer -max_total_time=60 build/fuzz-corpus tests/golden
 
+  tsan:
+    name: ThreadSanitizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/vcpkg
+      - run: cmake --preset tsan
+      - run: cmake --build --preset tsan
+      - run: ctest --preset tsan
+
   coverage:
     name: Coverage thresholds
     # Pinned: the LLVM tools are installed with a version suffix matching the image's clang.

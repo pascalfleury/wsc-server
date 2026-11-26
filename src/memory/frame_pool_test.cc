@@ -8,13 +8,17 @@
 #include <new>
 #include <vector>
 
+#include "absl/base/config.h"
 #include "absl/status/status.h"
 #include "absl/time/time.h"
 #include "gtest/gtest.h"
 #include "src/memory/frame.h"
 #include "testing/fake_clock.h"
 
-// Counts global allocations for the steady-traffic test (N-01).
+// Counts global allocations for the steady-traffic test (N-01). Not under
+// ThreadSanitizer, whose runtime defines operator new/delete itself.
+#ifndef ABSL_HAVE_THREAD_SANITIZER
+#define WSC_COUNT_ALLOCATIONS 1
 namespace {
 std::atomic<uint64_t> g_allocations{0};
 }  // namespace
@@ -41,6 +45,7 @@ void operator delete(void* p, const std::nothrow_t& /*tag*/) noexcept {
 void operator delete[](void* p, const std::nothrow_t& /*tag*/) noexcept {
   std::free(p);
 }
+#endif  // ABSL_HAVE_THREAD_SANITIZER
 
 namespace wsc_server {
 namespace {
@@ -175,6 +180,9 @@ TEST(FramePoolTest, CapDropsFreeFramesThenFails) {
 }
 
 TEST(FramePoolTest, SteadyTrafficDoesNotAllocate) {
+#ifndef WSC_COUNT_ALLOCATIONS
+  GTEST_SKIP() << "allocation counting is off under ThreadSanitizer";
+#else
   FakeClock clock;
   FramePool pool(clock);
   auto traffic = [&pool, &clock] {
@@ -194,6 +202,7 @@ TEST(FramePoolTest, SteadyTrafficDoesNotAllocate) {
   for (int i = 0; i < 1000; ++i) traffic();
   EXPECT_EQ(g_allocations.load(), before);
   EXPECT_EQ(pool.stats().allocations, frames);
+#endif
 }
 
 }  // namespace
