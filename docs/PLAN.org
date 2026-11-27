@@ -35,7 +35,7 @@ CLOSED: [2026-11-20 Fri 23:16]
 - [X] RateShaper: latest-value slots + FIFO, adapter-level timer; =DeliveryModel= on adapters (D-21)
 - [X] Universe buffers for partial =STREAM_CHANNELS= (F-27), one per source; merging several sources is the phase 4 arbiter
 - [X] sACN output adapter, with CID derived from the server ID (=Uuid= name-based v5, D-28); registered in =App= together with the sessions
-- [ ] Tool: =wsc-send= CLI to drive tests
+- [X] Tool: =wsc-send= CLI to drive tests (=tools/wsc_send/=): sends one =STREAM_CHANNELS= (sACN, unicast or multicast) or =KEEPALIVE= and exits 0 when the server answers =SUCCESS=
 - Milestone: upstream JS client (WebRTC) and =wsc-send= (WebSocket) -> server -> sACN visible in a sACN viewer
 
 * TODO Phase 4 — E1.31 input (F-30..F-33)

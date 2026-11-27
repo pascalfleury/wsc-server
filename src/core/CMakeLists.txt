@@ -16,6 +16,7 @@ target_link_libraries(wsc_app PUBLIC wsc_core absl::status absl::statusor
   absl::log absl::memory absl::random_random absl::synchronization
   absl::time)
 
+wsc_add_test(clock_test wsc_core)
 wsc_add_test(uuid_test wsc_core)
 wsc_add_test(identity_test wsc_core)
 wsc_add_test(app_test wsc_app)
