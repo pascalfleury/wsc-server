@@ -103,6 +103,7 @@ absl::Status App::Run(std::stop_token stop) {
   }
   ws->reset();  // closes the connections first
   stop_threads();
+  WsServer::ShutdownLibrary();
   LOG(INFO) << "wsc-server stopped";
   return absl::OkStatus();
 }

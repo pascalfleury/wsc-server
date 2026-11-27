@@ -184,3 +184,10 @@ Each server has a display name (F-03), defaulting to the host name, set through 
 :DATE: 2026-11-20
 :END:
 Fuzz targets are plain libFuzzer entry points (=LLVMFuzzerTestOneInput=) in =fuzz/=, built with Clang when =WSC_FUZZ=ON=. FuzzTest has no vcpkg port and brings its own Abseil; libFuzzer ships with Clang and needs nothing. The =asan= preset builds its vcpkg dependencies with the same Clang and sanitizers (overlay triplet =x64-linux-asan= in =cmake/triplets/=): Abseil types such as =absl::Cord= (used by =absl::Status= payloads) change layout under a sanitizer, so mixing sanitized code with unsanitized Abseil crashes.
+
+* D-31 A WebRTC session is the peer connection; replies go on the channel of their type
+:PROPERTIES:
+:DATE: 2026-11-26
+:END:
+Spec 06 describes one DataChannel named =WSC!DC!<timestamp>=; the reference JS client opens one channel per message type (=WSC!DC:STREAM_CHANNELS=, =WSC!DC:STATE_QUERY=, ...) and the reference gateway answers on =WSC!DC:STATE_ANSWER= / =WSC!DC:STATE_ERROR=. To work with both, every channel whose label starts with =WSC!DC= is accepted, all channels of a peer connection feed one =Session= (keepalives arrive on one channel only, so a session per channel would time the others out), and each outgoing packet goes on =WSC!DC:<its type>= when that channel exists, else on the channel the peer used last. The mismatch is raised upstream (WSC_UPSTREAM.org).
+

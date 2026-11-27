@@ -34,6 +34,9 @@ Spec 03/04 say software-specific identifiers (OSC path, QLab cue number, Modbus 
 * TODO Version bytes: 1.0.0 or 1.1.0?
 Spec 02 ("currently =[1, 0, 0]=") and the SDK (=WSC_VERSION=, header bytes) both say 1.0.0 while the CHANGELOG is at 1.1.0. Only the major byte matters for compatibility, but which minor should a 1.1.0 sender write?
 
+* TODO DataChannel labels: spec 06 and the reference client disagree
+Spec 06 says the client opens a DataChannel named =WSC!DC!<timestamp_ms>= and the gateway identifies WSC channels by the =WSC!DC!= prefix. The reference client (=implementations/js/client=) instead opens one DataChannel per message type, labelled =WSC!DC:<TYPE>= (e.g. =WSC!DC:STREAM_CHANNELS=, optionally =:<destination id>=), sends each packet on the channel of its type, and the reference gateway answers on =WSC!DC:STATE_ANSWER= / =WSC!DC:STATE_ERROR=. A gateway following the spec does not recognise the reference client's channels (=:= instead of =!=). Which is normative? If several channels are intended, the spec should say that the session is the peer connection (keepalives arrive on one channel only) and on which channel replies go.
+
 * TODO JS SDK deviations from the spec
 - =WscAddress.parse('lighting.custom.house_lights_on')= -> =01 fe 00 fe 0f house_lights_on 00=: the word "custom" becomes an extra, empty CUSTOM segment (golden case =control_cue_custom=).
 - =WscTransport.raw()= writes interface =0x00=, which spec 05 does not define (0x01-0x06) (golden case =tunnel_raw_sdk_helper=).

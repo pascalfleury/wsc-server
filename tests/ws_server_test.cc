@@ -33,6 +33,14 @@ namespace {
 
 constexpr absl::Duration kWait = absl::Seconds(5);
 
+// Stops libdatachannel's threads before static destructors run.
+class RtcEnvironment final : public testing::Environment {
+ public:
+  void TearDown() override { WsServer::ShutdownLibrary(); }
+};
+const auto* const kRtcEnvironment = testing::AddGlobalTestEnvironment(
+    new RtcEnvironment);  // NOLINT: gtest owns it
+
 // A libdatachannel WebSocket client that records what it receives.
 class Client {
  public:
@@ -150,7 +158,7 @@ TEST_F(WsServerTest, AnswersAKeepaliveOverWebSocket) {
   const auto& answer = std::get<wsc::StateAnswer>(reply.body);
   EXPECT_EQ(answer.query_id, 42u);
   EXPECT_EQ(answer.status, wsc::AnswerStatus::kSuccess);
-  EXPECT_EQ(server_->connection_count(), 1u);
+  EXPECT_EQ(server_->session_count(), 1u);
 }
 
 TEST_F(WsServerTest, RoutesForwardedPacketsAndAcknowledges) {

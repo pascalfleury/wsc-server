@@ -2,6 +2,7 @@
 #define WSC_SERVER_LIBWSC_TYPES_H_
 
 #include <cstdint>
+#include <string_view>
 
 // WSC 1.1.0 code tables (spec 02-05, 07). The enums are open: a decoded value
 // outside the listed ones is kept as-is, and Validate() decides what to reject.
@@ -17,6 +18,30 @@ enum class MessageType : uint16_t {
   kStateAnswer = 0xF001,
   kStateError = 0xF004,
 };
+
+// The type's name as the upstream SDK spells it (WscPacket.Type keys), e.g.
+// "STREAM_CHANNELS"; empty for an unknown type.
+constexpr std::string_view TypeName(MessageType type) {
+  switch (type) {
+    case MessageType::kStreamChannels:
+      return "STREAM_CHANNELS";
+    case MessageType::kStreamTimecode:
+      return "STREAM_TIMECODE";
+    case MessageType::kControlCue:
+      return "CONTROL_CUE";
+    case MessageType::kControlParam:
+      return "CONTROL_PARAM";
+    case MessageType::kTunnelRaw:
+      return "TUNNEL_RAW";
+    case MessageType::kStateQuery:
+      return "STATE_QUERY";
+    case MessageType::kStateAnswer:
+      return "STATE_ANSWER";
+    case MessageType::kStateError:
+      return "STATE_ERROR";
+  }
+  return {};
+}
 
 // Header flag bits (spec 02). Bits 10-0 are reserved.
 namespace flags {

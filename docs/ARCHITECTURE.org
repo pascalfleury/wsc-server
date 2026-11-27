@@ -57,7 +57,7 @@ Decisions and their rationale are logged in [[file:DECISIONS.org][DECISIONS.org]
 - A physical device (e.g. a MIDI port) may appear both as an =OutputAdapter= and an =InputTranslator=, sharing one device handle.
 
 * Classes and how they interact
-The classes that exist in the code, along the forward path. =WsServer= serves plain WebSocket sessions; WebRTC DataChannel sessions on the same endpoint are the next piece (Phase 3).
+The classes that exist in the code, along the forward path.
 
 #+begin_example
  WSC client (console)
@@ -68,8 +68,14 @@ The classes that exist in the code, along the forward path. =WsServer= serves pl
  │ ws://host:4515/ws     │◄──────────────│ src/memory/              │
  │ (libdatachannel C API)│ shared_ptr<   │ vector<shared_ptr<Frame>>│
  └──────────┬────────────┘ Frame>        │ reuse, idle sweep, cap   │
-            │ one Connection per socket, └──────────────────────────┘
-            │ its own strand + 1 s timeout check
+            │ binary messages: plain     └──────────────────────────┘
+            │ WebSocket session; JSON text: signalling (signalling.h)
+            │ -> peer connection, its WSC!DC* channels = one session (D-31)
+            ▼
+ ┌───────────────────────┐   SessionHost: the Session on its own strand,
+ │ SessionHost           │   1 s timeout check; owns the transport:
+ │ src/sessions/         │   WebSocketTransport or PeerTransport
+ └──────────┬────────────┘   (reply on WSC!DC:<type>, else last channel)
             ▼
  ┌───────────────────────┐   «interface» SessionTransport: Send(), Close()
  │ Session               │   answers KEEPALIVE itself; STATE_ERROR with the

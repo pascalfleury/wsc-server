@@ -46,6 +46,10 @@ class Session {
   // fills it on its own thread; FramePool is thread-safe).
   void OnFrame(std::shared_ptr<const Frame> frame);
 
+  // Restarts the silence clock: the timeout counts from now. For transports
+  // that connect after the session is created (WebRTC).
+  void ResetTimeout() { last_received_ = clock_.Now(); }
+
   // Closes the transport when the peer has been silent for kTimeout; returns
   // true then. Call periodically.
   bool CloseIfTimedOut();

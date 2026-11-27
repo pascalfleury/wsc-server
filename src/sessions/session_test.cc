@@ -158,5 +158,14 @@ TEST_F(SessionTest, ClosesAfterFiveSecondsOfSilence) {
   EXPECT_EQ(transport_.sent.size(), 1u);
 }
 
+TEST_F(SessionTest, ResetTimeoutCountsTheFiveSecondsFromNow) {
+  clock_.Advance(absl::Seconds(8));  // e.g. a slow WebRTC handshake
+  session_.ResetTimeout();
+  clock_.Advance(absl::Seconds(5));
+  EXPECT_FALSE(session_.CloseIfTimedOut());
+  clock_.Advance(absl::Milliseconds(1));
+  EXPECT_TRUE(session_.CloseIfTimedOut());
+}
+
 }  // namespace
 }  // namespace wsc_server

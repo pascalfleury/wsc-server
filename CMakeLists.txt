@@ -19,6 +19,7 @@ find_package(cppitertools CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(LibDataChannel CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 enable_testing()
 include(GoogleTest)

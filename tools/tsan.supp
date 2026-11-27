@@ -5,3 +5,15 @@
 # orders during connection setup and close (lock-order inversion inside
 # rtc::impl, no project frames involved). Reported against 0.24.6.
 deadlock:rtc::synchronized_callback
+
+# usrsctp (SCTP under WebRTC data channels, via libdatachannel) is not clean
+# under ThreadSanitizer: races between its timer, input and output paths on
+# its own state. Project code only appears as a caller of rtcSendMessage /
+# rtcClosePeerConnection. Anchored to usrsctp's function prefixes.
+race:^sctp_
+race:^usrsctp_
+
+# libdatachannel: Channel::resetCallbacks (on delete) races with a callback
+# still being called on its poll thread (synchronized_stored_callback's flag).
+race:rtc::synchronized_stored_callback
+race:rtc::impl::Channel::resetCallbacks

@@ -81,10 +81,10 @@ WSC 1.1.0 defines only =STATE_QUERY= type =KEEPALIVE (0x00)=, with no way to dis
 
 * Sessions
 ** Scope
-A =Session= is one connected WSC peer over one transport. It:
+A =Session= is one connected WSC peer: one plain WebSocket, or one WebRTC peer connection with all its WSC data channels (D-31). It:
 - receives bytes, places them into a pooled Frame, decodes, posts to the Router;
 - sends return-path frames (feedback, STATE_*) to the peer;
-- answers =STATE_QUERY(KEEPALIVE)= and closes after 5000 ms without one; keeps its own outgoing packet ID counter; sends =STATE_ERROR= / ACK answers to its peer (spec 06). No version negotiation beyond the per-packet major check.
+- answers =STATE_QUERY(KEEPALIVE)= and closes after 5000 ms of silence (any message counts; for WebRTC the 5 s count from the first data channel); keeps its own outgoing packet ID counter; sends =STATE_ERROR= / ACK answers to its peer (spec 06). No version negotiation beyond the per-packet major check.
 - drops a return-path packet when the transport's send buffer is above a threshold instead of queuing it (spec 06 send-path behaviour); events that must arrive go through the FIFO shaper first.
 
 ** Transports
@@ -93,10 +93,10 @@ Both share the =/ws= endpoint: a WebSocket that sends JSON text is a signalling 
 |------------+----------------------+-------+------------------------------------------------------------------------------------------------------------------------------|
 |            |                      |       | <70>                                                                                                                         |
 | WebSocket  | libdatachannel C API |     3 | binary frames, one WSC packet per message; non-standard alternative (spec 06)                                                |
-| WebRTC DC  | libdatachannel C API |     3 | reference transport; JSON signalling on =/ws= (=offer= -> =answer=, =ice= both ways), host ICE candidates only, label prefix =WSC!DC!= |
+| WebRTC DC  | libdatachannel C API |     3 | reference transport; JSON signalling on =/ws= (=offer= -> =answer=, =ice= both ways), host ICE candidates only; channels with the label prefix =WSC!DC= (spec: =WSC!DC!<ts>=, reference client: =WSC!DC:<TYPE>=); replies on =WSC!DC:<reply type>=, else on the channel last used |
 | TCP/serial | Asio                 |  opt. | only if needed                                                                                                               |
 
-libdatachannel's C++ API throws; we wrap =rtc.h= in our own exception-free classes.
+libdatachannel's C++ API throws; we use its C API (=rtc.h=). =WsServer= keeps one map of all libdatachannel objects (WebSockets, peer connections, data channels; their ids are unique across kinds). Callbacks never delete their own object: they mark it closing and post a reap to the executor, because a delete from inside a callback does not wait for that object's other callbacks; the reap, or the destructor, deletes it and so waits. =WsServer::ShutdownLibrary()= (=rtcCleanup=) stops libdatachannel's threads before the process exits.
 
 ** Lifecycle
 - On close: notify the RDM module to drop answers still owed to this session; release all frames.
