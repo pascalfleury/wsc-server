@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <utility>
 
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/time/time.h"
 #include "src/platform/asio.h"
@@ -20,13 +19,9 @@ SacnAdapter::SacnAdapter(const asio::any_io_executor& executor,
 
 void SacnAdapter::Submit(Message message) {
   asio::post(strand_, [this, message = std::move(message)] {
-    // shortcut: rejected packets are only logged; STATE_ERROR replies to the
-    // session come with the sessions (Phase 3, step 6).
-    if (absl::Status status = streams_.Apply(message.packet); !status.ok()) {
-      LOG_EVERY_N_SEC(WARNING, 5) << "sACN: " << status;
-      return;
-    }
-    Tick();
+    const absl::Status status = streams_.Apply(message.packet);
+    Report(message, status);
+    if (status.ok()) Tick();
   });
 }
 

@@ -32,7 +32,7 @@ Frame allocations, evictions (idle and cap), bytes in use, bytes free. A steadil
 - The router hands frames to the stream's arbiter (see Arbitration), not straight to the shaper.
 - Fan-out: if a descriptor addresses several outputs, the same =shared_ptr<const Frame>= is posted to each (no copy).
 - =STATE_QUERY(KEEPALIVE)= is answered by the session itself; RDM query types (=EXT=) go to the RDM module, which answers through the FeedbackRouter.
-- =ACK= flag: the adapter reports the send result back to the session, which emits =STATE_ANSWER(query_id = packet id)=.
+- Results: each =Message= carries a =weak_ptr<ReplySink>= to its session (=src/routing/message.h=). The adapter reports the result of applying the packet exactly once (=Report()=); the session posts it to its strand and answers =STATE_ERROR= with the packet id on failure, or =STATE_ANSWER(query_id = packet id)= on success when =ACK= is set (F-15, F-16). =ACK= means the adapter accepted the packet, not that the datagram left: UDP send failures are logged.
 
 * Rate shaping (=src/shaping/=)
 ** Policies

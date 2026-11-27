@@ -28,7 +28,7 @@ CLOSED: [2026-11-20 Fri 23:16]
 - [X] libwsc decode/encode for all message types, golden round-trip tests
 - [X] libFuzzer target on Decode (D-30)
 
-* WIP Phase 3 — First end-to-end path (F-13, F-14, F-20..F-22)
+* WIP Phase 3 — First end-to-end path (F-13..F-16, F-20..F-22)
 - [X] WebSocket session and WebRTC DataChannel session with =/ws= signalling (libdatachannel C API), both from the start (D-15, D-31)
 - [X] Keepalive handling, 5 s session timeout, =ACK= answers
 - [X] Router (stateless)
@@ -36,6 +36,7 @@ CLOSED: [2026-11-20 Fri 23:16]
 - [X] Universe buffers for partial =STREAM_CHANNELS= (F-27), one per source; merging several sources is the phase 4 arbiter
 - [X] sACN output adapter, with CID derived from the server ID (=Uuid= name-based v5, D-28); registered in =App= together with the sessions
 - [X] Tool: =wsc-send= CLI to drive tests (=tools/wsc_send/=): sends one =STREAM_CHANNELS= (sACN, unicast or multicast) or =KEEPALIVE= and exits 0 when the server answers =SUCCESS=
+- [X] Adapter results back to the session (F-15, F-16): =Message= carries a reply handle to its session; the adapter posts the result of applying the packet, and the session answers =STATE_ANSWER= or =STATE_ERROR= with the packet id. =ACK= means the adapter accepted the packet; UDP send failures stay logged until the metrics (phase 6)
 - Milestone: upstream JS client (WebRTC) and =wsc-send= (WebSocket) -> server -> sACN visible in a sACN viewer
 
 * TODO Phase 4 — E1.31 input (F-30..F-33)

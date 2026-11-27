@@ -24,7 +24,8 @@ class OutputAdapter {
   [[nodiscard]] virtual bool enabled() const = 0;
 
   // Takes a validated message for this protocol. Called on any thread; the
-  // adapter posts it to its own strand.
+  // adapter posts it to its own strand, and reports the result exactly once
+  // with Report() (message.h).
   virtual void Submit(Message message) = 0;
 };
 

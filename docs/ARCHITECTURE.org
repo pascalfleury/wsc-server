@@ -79,8 +79,8 @@ The classes that exist in the code, along the forward path.
             ▼
  ┌───────────────────────┐   «interface» SessionTransport: Send(), Close()
  │ Session               │   answers KEEPALIVE itself; STATE_ERROR with the
- │ src/sessions/         │   offending id; ACK -> STATE_ANSWER; closes after
- └──────────┬────────────┘   5 s of silence
+ │ src/sessions/         │   offending id; adapter result -> STATE_ERROR, or
+ └──────────┬────────────┘   STATE_ANSWER on ACK; closes after 5 s of silence
             │ frame bytes
             ▼
  ┌───────────────────────┐   Frame: owns its buffer (unique_ptr<uint8_t[]>),
@@ -88,7 +88,8 @@ The classes that exist in the code, along the forward path.
  │ libwsc/packet.h       │
  └──────────┬────────────┘   wsc::Packet = Header + optional<TransportDescriptor>
             │                              + Body (variant of 8 message types)
-            │ Message = { shared_ptr<const Frame>, wsc::Packet }
+            │ Message = { shared_ptr<const Frame>, wsc::Packet,
+            │             weak_ptr<ReplySink> } (the SessionHost)
             ▼
  ┌───────────────────────┐   1. wsc::Validate (libwsc/validate.h):
  │ Router                │      flag invariants, (protocol, iface),

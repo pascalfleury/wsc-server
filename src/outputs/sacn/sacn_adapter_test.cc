@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "libwsc/error.h"
 #include "libwsc/packet.h"
 #include "libwsc/transport.h"
 #include "libwsc/types.h"
@@ -20,6 +21,7 @@
 #include "src/routing/message.h"
 #include "testing/fake_clock.h"
 #include "testing/fake_datagram_sender.h"
+#include "testing/fake_reply_sink.h"
 
 namespace wsc_server {
 namespace {
@@ -64,6 +66,34 @@ TEST(SacnAdapterTest, SendsOnTheStrandAndCoalescesBurstUpdates) {
   adapter.Submit(ChannelsMessage(b));
   io.poll();
   EXPECT_EQ(sender.sent.size(), 1u);
+}
+
+TEST(SacnAdapterTest, ReportsEachResultToTheSender) {
+  asio::io_context io;
+  FakeClock clock;
+  FakeDatagramSender sender;
+  const Uuid cid = Uuid::Parse("35797cde-3def-48f8-bb5a-19713477591e").value();
+  SacnAdapter adapter(io.get_executor(), clock, {.cid = cid}, sender);
+  const auto sink = std::make_shared<FakeReplySink>();
+  const std::vector<uint8_t> values(4, 1);
+
+  Message accepted = ChannelsMessage(values);
+  accepted.packet.header.id = 5;
+  accepted.reply = sink;
+  Message rejected = ChannelsMessage(values);
+  rejected.packet.header.id = 6;
+  std::get<wsc::StreamChannels>(rejected.packet.body).universe = 0;
+  rejected.reply = sink;
+  adapter.Submit(accepted);
+  adapter.Submit(rejected);
+  io.poll();
+
+  ASSERT_EQ(sink->results.size(), 2u);
+  EXPECT_EQ(sink->results[0].id, 5u);
+  EXPECT_TRUE(sink->results[0].status.ok());
+  EXPECT_EQ(sink->results[1].id, 6u);
+  EXPECT_EQ(wsc::GetErrorCode(sink->results[1].status),
+            wsc::ErrorCode::kValidationFailed);
 }
 
 TEST(SacnAdapterTest, RejectedPacketsSendNothing) {

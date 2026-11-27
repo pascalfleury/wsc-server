@@ -32,7 +32,14 @@ void SessionHost::Start() {
 
 void SessionHost::Receive(std::shared_ptr<const Frame> frame) {
   asio::post(strand_, [self = shared_from_this(), frame = std::move(frame)] {
-    self->session_.OnFrame(frame);
+    self->session_.OnFrame(frame, self);
+  });
+}
+
+void SessionHost::OnResult(const wsc::Header& header,
+                           const absl::Status& status) {
+  asio::post(strand_, [self = shared_from_this(), header, status] {
+    self->session_.OnResult(header, status);
   });
 }
 

@@ -11,6 +11,7 @@
 #include "absl/time/time.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "libwsc/error.h"
 #include "libwsc/packet.h"
 #include "libwsc/transport.h"
 #include "libwsc/types.h"
@@ -18,6 +19,7 @@
 #include "src/routing/router.h"
 #include "testing/fake_clock.h"
 #include "testing/fake_output_adapter.h"
+#include "testing/fake_reply_sink.h"
 
 namespace wsc_server {
 namespace {
@@ -110,13 +112,53 @@ TEST_F(SessionTest, RoutesForwardedPacketsIntoPooledFrames) {
   EXPECT_TRUE(transport_.sent.empty());  // no ACK requested
 }
 
-TEST_F(SessionTest, AnswersAckAfterRouting) {
+TEST_F(SessionTest, PassesItsReplySinkWithEachMessage) {
+  const auto sink = std::make_shared<FakeReplySink>();
+  session_.OnMessage(Channels(4, wsc::Protocol::kSacn), sink);
+  ASSERT_EQ(sacn_.submitted.size(), 1u);
+  EXPECT_EQ(sacn_.submitted[0].reply.lock(), sink);
+}
+
+TEST_F(SessionTest, AnswersAckOnlyOnceTheAdapterAcceptedThePacket) {
   session_.OnMessage(Channels(9, wsc::Protocol::kSacn, wsc::flags::kAck));
+  EXPECT_TRUE(transport_.sent.empty());  // routed, adapter not done yet
+  session_.OnResult(sacn_.submitted.at(0).packet.header, absl::OkStatus());
   ASSERT_EQ(transport_.sent.size(), 1u);
   const wsc::Packet reply = Sent(0);
   const auto& answer = std::get<wsc::StateAnswer>(reply.body);
   EXPECT_EQ(answer.query_id, 9u);
   EXPECT_EQ(answer.status, wsc::AnswerStatus::kSuccess);
+}
+
+TEST_F(SessionTest, AcceptedPacketsWithoutAckGetNoAnswer) {
+  session_.OnMessage(Channels(10, wsc::Protocol::kSacn));
+  session_.OnResult(sacn_.submitted.at(0).packet.header, absl::OkStatus());
+  EXPECT_TRUE(transport_.sent.empty());
+}
+
+TEST_F(SessionTest, RepliesStateErrorWhenTheAdapterRejectsThePacket) {
+  for (const uint16_t ack : {uint16_t{0}, wsc::flags::kAck}) {
+    transport_.sent.clear();
+    sacn_.submitted.clear();
+    session_.OnMessage(Channels(12, wsc::Protocol::kSacn, ack));
+    session_.OnResult(
+        sacn_.submitted.at(0).packet.header,
+        wsc::Error(wsc::ErrorCode::kValidationFailed, "priority 250"));
+    ASSERT_EQ(transport_.sent.size(), 1u) << "ack " << ack;
+    const wsc::Packet reply = Sent(0);
+    EXPECT_EQ(reply.header.id, 12u);
+    const auto& error = std::get<wsc::StateError>(reply.body);
+    EXPECT_EQ(error.code, wsc::ErrorCode::kValidationFailed);
+    EXPECT_EQ(error.message, "priority 250");
+  }
+}
+
+TEST_F(SessionTest, IgnoresResultsAfterClosing) {
+  session_.OnMessage(Channels(13, wsc::Protocol::kSacn, wsc::flags::kAck));
+  clock_.Advance(absl::Seconds(6));
+  ASSERT_TRUE(session_.CloseIfTimedOut());
+  session_.OnResult(sacn_.submitted.at(0).packet.header, absl::OkStatus());
+  EXPECT_TRUE(transport_.sent.empty());
 }
 
 TEST_F(SessionTest, RepliesStateErrorWithTheOffendingId) {

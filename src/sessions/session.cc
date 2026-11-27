@@ -42,7 +42,8 @@ Session::Session(SessionTransport& transport, const Router& router,
       clock_(clock),
       last_received_(clock.Now()) {}
 
-void Session::OnMessage(std::span<const uint8_t> bytes) {
+void Session::OnMessage(std::span<const uint8_t> bytes,
+                        std::weak_ptr<ReplySink> reply) {
   absl::StatusOr<std::shared_ptr<Frame>> frame = pool_.Acquire(bytes.size());
   if (!frame.ok()) {
     // shortcut: dropped and logged; DATAPATH.org wants STATE_ERROR for events
@@ -52,13 +53,15 @@ void Session::OnMessage(std::span<const uint8_t> bytes) {
   }
   std::ranges::copy(bytes, (*frame)->mutable_buffer().begin());
   (*frame)->set_size(bytes.size());
-  OnFrame(*std::move(frame));
+  OnFrame(*std::move(frame), std::move(reply));
 }
 
-void Session::OnFrame(std::shared_ptr<const Frame> frame) {
+void Session::OnFrame(std::shared_ptr<const Frame> frame,
+                      std::weak_ptr<ReplySink> reply) {
   if (closed_) return;
   last_received_ = clock_.Now();
-  Message message{.frame = std::move(frame), .packet = {}};
+  Message message{
+      .frame = std::move(frame), .packet = {}, .reply = std::move(reply)};
   const std::span<const uint8_t> bytes = message.frame->bytes();
 
   absl::StatusOr<wsc::Packet> packet = wsc::Decode(bytes);
@@ -68,11 +71,12 @@ void Session::OnFrame(std::shared_ptr<const Frame> frame) {
     }
     return;
   }
-  message.packet = *packet;
-  Handle(*packet, std::move(message));
+  message.packet = *std::move(packet);
+  Handle(std::move(message));
 }
 
-void Session::Handle(const wsc::Packet& packet, Message message) {
+void Session::Handle(Message message) {
+  const wsc::Packet& packet = message.packet;
   const uint32_t id = packet.header.id;
   if (const auto* query = std::get_if<wsc::StateQuery>(&packet.body)) {
     SendAnswer(id, query->type == wsc::QueryType::kKeepalive
@@ -84,14 +88,19 @@ void Session::Handle(const wsc::Packet& packet, Message message) {
       std::holds_alternative<wsc::StateError>(packet.body)) {
     return;  // nothing of ours is waiting for answers yet
   }
-  const bool ack = (packet.header.flags & wsc::flags::kAck) != 0;
+  // On success the adapter reports later, through OnResult().
   if (absl::Status status = router_.Route(std::move(message)); !status.ok()) {
     SendError(id, status);
-    return;
   }
-  // shortcut: ACK is answered once the router accepted the packet; F-16 wants
-  // the adapter's send result, which needs a return path from the adapters.
-  if (ack) SendAnswer(id, wsc::AnswerStatus::kSuccess);
+}
+
+void Session::OnResult(const wsc::Header& header, const absl::Status& status) {
+  if (closed_) return;
+  if (!status.ok()) {
+    SendError(header.id, status);
+  } else if ((header.flags & wsc::flags::kAck) != 0) {
+    SendAnswer(header.id, wsc::AnswerStatus::kSuccess);
+  }
 }
 
 bool Session::CloseIfTimedOut() {
