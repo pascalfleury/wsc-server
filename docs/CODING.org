@@ -127,6 +127,7 @@ Applies to all project code (=libwsc/=, =src/=, =tests/=, =fuzz/=, =tools/=). Th
 | compiler warnings | =-Wall -Wextra -Wpedantic -Werror= (MSVC =/W4 /WX=) on project targets | every build              |
 | sanitizers        | ASan, UBSan, TSan                                                  | CI, Linux                |
 | =llvm-cov=          | coverage thresholds                                                | CI, Linux                |
+| =tools/check_deps.py= | no cycles between CMake targets, by links and included headers (D-32) | CI, Linux                |
 
 * Open points
 - [ ] Pin minimum MSVC and Apple Clang versions from the CI images, and list which C++23 library features all three support (phase 1). Library features in use so far: =std::jthread= / =std::stop_token= (experimental in older libc++, enabled with =-fexperimental-library=), =std::ranges= algorithms.

@@ -56,7 +56,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/vcpkg
+      # The CMake File API query feeds the package cycle check (D-32).
+      - run: |
+          mkdir -p build/tsan/.cmake/api/v1/query
+          touch build/tsan/.cmake/api/v1/query/codemodel-v2
       - run: cmake --preset tsan
+      - run: python3 tools/check_deps.py --self-test
+      - run: python3 tools/check_deps.py build/tsan --root .
       - run: cmake --build --preset tsan
       - run: ctest --preset tsan
 
