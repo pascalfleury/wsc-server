@@ -86,7 +86,7 @@ Applies to all project code (=libwsc/=, =src/=, =tests/=, =fuzz/=, =tools/=). Th
 
 * Modules
 - Each directory under =src/= is one CMake library target with its dependencies declared; =libwsc/= depends only on the standard library and Abseil.
-- Dependencies point one way, no cycles:
+- Dependencies point one way, no cycles (D-32):
   #+begin_example
   libwsc, memory, core/enums              (no project dependencies beyond these)
      ^
